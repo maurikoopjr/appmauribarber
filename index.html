@@ -51,32 +51,48 @@
                     </button>
                 </form>
 
-                <!-- Acordeão de credenciais de demonstração -->
-                <button type="button" class="login-hints-toggle" onclick="toggleHints()">
-                    <i class="fa-solid fa-circle-info"></i>
-                    Credenciais de demonstração
-                    <i class="fa-solid fa-chevron-down login-hints-chevron" id="iconeHints"></i>
-                </button>
-                <div class="login-hints-body" id="hintsBody">
-                    <div class="hint-row">
-                        <span class="hint-role"><i class="fa-solid fa-user-tie"></i> Gerente</span>
-                        <code class="hint-cred">gerente / 1234</code>
-                    </div>
-                    <div class="hint-row">
-                        <span class="hint-role"><i class="fa-solid fa-scissors"></i> Barbeiros</span>
-                        <code class="hint-cred">augusto, lucas ou camila / 1234</code>
-                    </div>
-                    <div class="hint-row">
-                        <span class="hint-role"><i class="fa-regular fa-user"></i> Cliente</span>
-                        <code class="hint-cred">mauricio.koop@vip.com / 1234</code>
-                    </div>
-                </div>
-
                 <div class="login-divider">OU</div>
 
-                <button class="secondary-btn" style="width: 100%;" onclick="mostrarCadastro()">
-                    <i class="fa-solid fa-user-plus"></i> Criar Nova Conta
+                <button class="secondary-btn" style="width: 100%; margin-bottom: 8px;" onclick="mostrarCadastro()">
+                    <i class="fa-solid fa-user-plus"></i> Criar Conta Cliente
                 </button>
+                <button class="secondary-btn" style="width: 100%; border-color: var(--accent-gold); color: var(--accent-gold);" onclick="mostrarCadastroTenant()">
+                    <i class="fa-solid fa-store"></i> Cadastrar Nova Barbearia
+                </button>
+            </div>
+
+            <!-- PAINEL 3: CADASTRO DE TENANT (EMPRESA) -->
+            <div id="painelCadastroTenant" class="login-panel">
+                <div class="login-back-header">
+                    <button type="button" class="btn-voltar-login" onclick="mostrarLogin()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <span class="login-sub-title">Criar Barbearia (Empresa)</span>
+                </div>
+                <form onsubmit="registrarNovaBarbeariaForm(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="tenantNome">Nome da Barbearia</label>
+                        <input type="text" class="form-input" id="tenantNome" required placeholder="Ex: Barbearia Premium Fênix">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tenantEmail">E-mail do Administrador</label>
+                        <input type="email" class="form-input" id="tenantEmail" required placeholder="Ex: gerente@barber.com" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tenantSenha">Senha de Acesso</label>
+                        <input type="password" class="form-input" id="tenantSenha" required placeholder="Mínimo 4 caracteres" minlength="4" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tenantTelefone">Telefone / WhatsApp</label>
+                        <input type="tel" class="form-input" id="tenantTelefone" required placeholder="Ex: (11) 99999-8888">
+                    </div>
+                    <button type="submit" class="primary-btn login-btn" style="margin-top:8px;">
+                        <i class="fa-solid fa-rocket"></i> Criar Barbearia & Iniciar Teste
+                    </button>
+                </form>
+                <div style="text-align:center; margin-top:14px; font-size:12px; color:var(--text-muted);">
+                    <i class="fa-solid fa-circle-info"></i> Seu cadastro iniciará com <strong>7 dias de Teste Grátis</strong> imediato!
+                </div>
             </div>
 
             <!-- PAINEL 2: CADASTRO -->
@@ -859,11 +875,30 @@
                         </div>
                     </div>
 
-                    <div class="form-group" style="max-width:200px;">
-                        <label class="form-label" for="configBarbeiroComissao">Taxa de Comissão (%)</label>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <input type="number" min="0" max="100" class="form-input" id="configBarbeiroComissao" required placeholder="50">
-                            <span style="color:var(--accent-gold); font-weight:700; font-size:18px;">%</span>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+                        <div class="form-group" style="max-width:200px;">
+                            <label class="form-label" for="configBarbeiroComissao">Taxa de Comissão (%)</label>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <input type="number" min="0" max="100" class="form-input" id="configBarbeiroComissao" required placeholder="50">
+                                <span style="color:var(--accent-gold); font-weight:700; font-size:18px;">%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Foto do Profissional</label>
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <div class="logo-preview-container" style="width: 48px; height: 48px; border-radius:50%; border:2px solid var(--accent-gold); overflow:hidden; position:relative;">
+                                    <img id="configBarbeiroFotoPreview" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                                    <div id="configBarbeiroFotoIcon" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--bg-tertiary); font-size:18px; color:var(--accent-gold);"><i class="fa-solid fa-user"></i></div>
+                                </div>
+                                <div style="display:flex; gap:6px;">
+                                    <label class="primary-btn" for="gerenteUploadBarbeiroFoto" style="cursor:pointer; display:inline-block; font-size:11px; padding:8px 12px;">
+                                        <i class="fa-solid fa-camera"></i>
+                                    </label>
+                                    <input type="file" id="gerenteUploadBarbeiroFoto" accept="image/*" style="display:none" onchange="uploadFotoBarbeiroGerente(this)">
+                                    <button type="button" class="danger-btn" onclick="removerFotoBarbeiroGerente()" style="font-size:11px; padding:8px 12px;"><i class="fa-solid fa-trash-alt"></i></button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1206,6 +1241,78 @@
             </div>
             <div class="modal-footer" style="padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; background: var(--bg-secondary);">
                 <button class="primary-btn" onclick="fecharModalPlanilha()" style="padding: 10px 24px; font-size:13px;">Fechar Planilha</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOCK OVERLAY: ASSINATURA EXPIRADA -->
+    <div class="lock-overlay" id="saasLockOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-primary); z-index:99999; align-items:center; justify-content:center; padding: 20px;">
+        <div class="login-card" style="max-width: 480px; border-color: var(--accent-danger); box-shadow: 0 0 30px rgba(239,68,68,0.15); width: 100%;">
+            <div class="login-logo" style="margin-bottom: 20px; text-align: center;">
+                <div class="login-logo-icon" style="background: rgba(239,68,68,0.1); color:var(--accent-danger); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto; font-size: 24px;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <h2 style="color: var(--accent-danger); margin: 0; font-size: 20px;">Acesso Bloqueado</h2>
+                <span style="color:var(--text-muted); font-size: 13px;">Assinatura do App Expirada</span>
+            </div>
+            <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:20px; line-height:1.6;">
+                O período de testes de 7 dias ou sua mensalidade expirou. Escolha um plano de renovação abaixo para liberar o sistema na hora!
+            </p>
+            
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label" for="checkoutPlanSelect">Selecione o Plano</label>
+                <select class="form-input" id="checkoutPlanSelect" onchange="atualizarPrecoCheckout()"></select>
+            </div>
+            
+            <div class="fidelity-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:16px; margin-bottom:20px; text-align:center; border-radius: var(--border-radius-sm);">
+                <span style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Valor via PIX:</span>
+                <strong style="font-size:24px; color:var(--accent-gold);" id="checkoutPlanPrice">R$ 0,00</strong>
+            </div>
+
+            <!-- Checkout PIX Section -->
+            <div class="checkout-pix-box" style="display:flex; flex-direction:column; align-items:center; background:var(--bg-tertiary); padding:16px; border-radius:var(--border-radius-sm); margin-bottom:20px;">
+                <div style="width:130px; height:130px; background:white; padding:8px; border-radius:8px; margin-bottom:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 15px rgba(0,0,0,0.5);">
+                    <!-- Beautiful CSS pixelated PIX QR Code representation -->
+                    <div style="width:100%; height:100%; background:repeating-conic-gradient(from 45deg, #000 0% 25%, #fff 0% 50%) 50% / 14px 14px; opacity:0.85;"></div>
+                </div>
+                <button class="secondary-btn" style="width:100%; font-size:12px; padding:8px 12px; margin-bottom:6px;" onclick="copiarPixCheckout()">
+                    <i class="fa-solid fa-copy"></i> Copiar Código PIX Copia e Cola
+                </button>
+                <input type="text" id="pixCopiaColaInput" readonly style="position:absolute; left:-9999px;">
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button class="secondary-btn" style="flex:1;" onclick="fazerLogout()"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+                <button class="primary-btn" style="flex:2;" onclick="simularPagamentoAssinatura()"><i class="fa-solid fa-check-circle"></i> Confirmar Pagamento Simulado</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: NOVO PLANO (Super-Admin) -->
+    <div class="modal-overlay" id="modalDevPlanoForm" style="z-index: 25000;">
+        <div class="modal-card" style="max-width:440px;">
+            <div class="modal-header">
+                <h3 id="modalDevPlanoTitulo">Adicionar Novo Plano</h3>
+                <button class="icon-btn" onclick="fecharModalPlanoForm()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="devPlanoForm" onsubmit="salvarPlanoForm(event)">
+                    <input type="hidden" id="formPlanoId">
+                    <div class="form-group">
+                        <label class="form-label" for="formPlanoNome">Nome do Plano</label>
+                        <input type="text" class="form-input" id="formPlanoNome" required placeholder="Ex: Plano Gold Anual">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="formPlanoPreco">Preço Mensal (R$)</label>
+                        <input type="number" step="0.01" min="0" class="form-input" id="formPlanoPreco" required placeholder="149.90">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="formPlanoDuracao">Duração em Dias</label>
+                        <input type="number" min="1" class="form-input" id="formPlanoDuracao" value="30" required>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                        <button type="button" class="secondary-btn" onclick="fecharModalPlanoForm()">Cancelar</button>
+                        <button type="submit" class="primary-btn"><i class="fa-solid fa-floppy-disk"></i> Salvar Plano</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

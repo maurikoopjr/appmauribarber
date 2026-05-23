@@ -2,6 +2,85 @@
    APP.JS - BARBEARIA PREMIUM & GESTÃO (GENTLEMAN'S CLUB)
    ========================================================================== */
 
+// ==========================================================================
+// CAPA MULTITENANT SAAS (PROTOTYPE Storage OVERRIDES)
+// ==========================================================================
+
+const _origGetItem = Storage.prototype.getItem;
+const _origSetItem = Storage.prototype.setItem;
+
+function getActiveTenantId() {
+    if (currentUser && currentUser.tenantId) {
+        return currentUser.tenantId;
+    }
+    const session = sessionStorage.getItem("currentSession");
+    if (session) {
+        try {
+            const u = JSON.parse(session);
+            if (u && u.tenantId) return u.tenantId;
+        } catch(e) {}
+    }
+    return "t_default";
+}
+
+Storage.prototype.getItem = function(key) {
+    const val = _origGetItem.call(this, key);
+    if (!val) return val;
+
+    const multitenantKeys = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
+    if (!multitenantKeys.includes(key)) return val;
+
+    if (currentUser && currentUser.role === "desenvolvedor") {
+        return val; // Super Admin sees raw consolidated database
+    }
+
+    const tenantId = getActiveTenantId();
+    try {
+        const data = JSON.parse(val);
+        if (Array.isArray(data)) {
+            return JSON.stringify(data.filter(item => item.tenantId === tenantId));
+        } else if (data && typeof data === "object") {
+            if (data.tenantId && data.tenantId !== tenantId) {
+                return null;
+            }
+        }
+    } catch(e) {}
+
+    return val;
+};
+
+Storage.prototype.setItem = function(key, value) {
+    const multitenantKeys = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
+    if (!multitenantKeys.includes(key)) {
+        return _origSetItem.call(this, key, value);
+    }
+
+    const tenantId = getActiveTenantId();
+    try {
+        const newData = JSON.parse(value);
+        if (Array.isArray(newData)) {
+            const rawVal = _origGetItem.call(this, key);
+            const allRaw = rawVal ? JSON.parse(rawVal) : [];
+            const otherTenantsData = Array.isArray(allRaw) 
+                ? allRaw.filter(item => item.tenantId !== tenantId) 
+                : [];
+                
+            const updatedNewData = newData.map(item => {
+                if (!item.tenantId) item.tenantId = tenantId;
+                return item;
+            });
+            
+            const merged = [...otherTenantsData, ...updatedNewData];
+            return _origSetItem.call(this, key, JSON.stringify(merged));
+        } else if (newData && typeof newData === "object") {
+            newData.tenantId = tenantId;
+            return _origSetItem.call(this, key, JSON.stringify(newData));
+        }
+    } catch(e) {}
+
+    return _origSetItem.call(this, key, value);
+};
+
 // Estado da Sessão Ativa
 let currentUser = null; // Guardará o perfil e dados do usuário logado
 
@@ -88,29 +167,63 @@ window.onload = function() {
 };
 
 function inicializarLocalStorage() {
+    // 1. Inicializar Planos SaaS
+    const defaultPlans = [
+        { id: "plan_bronze", name: "Plano Classic Bronze", price: 59.90, durationDays: 30 },
+        { id: "plan_prata", name: "Plano VIP Silver", price: 99.90, durationDays: 30 },
+        { id: "plan_gold", name: "Plano Premium Golden", price: 149.90, durationDays: 30 }
+    ];
+    if (!localStorage.getItem("plans")) {
+        _origSetItem.call(localStorage, "plans", JSON.stringify(defaultPlans));
+    }
+
+    // 2. Inicializar Tenants (Barbearias)
+    const defaultTenants = [
+        {
+            id: "t_default",
+            name: "The Golden Blade",
+            ownerEmail: "gerente",
+            ownerPassword: "1234",
+            phone: "(11) 99999-8888",
+            planId: "plan_gold",
+            status: "active",
+            trialExpires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            planExpires: Date.now() + 30 * 24 * 60 * 60 * 1000
+        }
+    ];
+    if (!localStorage.getItem("tenants")) {
+        _origSetItem.call(localStorage, "tenants", JSON.stringify(defaultTenants));
+    }
+
+    // 3. Garantir seeds padrão no t_default
+    const sessionMock = { tenantId: "t_default" };
+    sessionStorage.setItem("currentSession", JSON.stringify(sessionMock));
+
     if (!localStorage.getItem("customers")) {
-        localStorage.setItem("customers", JSON.stringify(DEFAULT_CUSTOMERS));
+        localStorage.setItem("customers", JSON.stringify(DEFAULT_CUSTOMERS.map(c => ({...c, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("barbers")) {
-        localStorage.setItem("barbers", JSON.stringify(DEFAULT_BARBERS));
+        localStorage.setItem("barbers", JSON.stringify(DEFAULT_BARBERS.map(b => ({...b, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("services")) {
-        localStorage.setItem("services", JSON.stringify(DEFAULT_SERVICES));
+        localStorage.setItem("services", JSON.stringify(DEFAULT_SERVICES.map(s => ({...s, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("products")) {
-        localStorage.setItem("products", JSON.stringify(DEFAULT_PRODUCTS));
+        localStorage.setItem("products", JSON.stringify(DEFAULT_PRODUCTS.map(p => ({...p, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("bookings")) {
         localStorage.setItem("bookings", JSON.stringify([]));
     }
     if (!localStorage.getItem("sales")) {
-        localStorage.setItem("sales", JSON.stringify(HISTORICAL_SALES_MOCK));
+        localStorage.setItem("sales", JSON.stringify(HISTORICAL_SALES_MOCK.map(s => ({...s, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("notifications")) {
         localStorage.setItem("notifications", JSON.stringify([
-            { id: "n1", text: "O gerente ajustou a comissão inicial da barbearia.", time: "Ontem às 10:00", unread: false }
+            { id: "n1", text: "O gerente ajustou a comissão inicial da barbearia.", time: "Ontem às 10:00", unread: false, tenantId: "t_default" }
         ]));
     }
+
+    sessionStorage.removeItem("currentSession");
 
     // MIGRAÇÃO: Garantir campos de autenticação e status em todos os usuários
     _migrarAutenticacao();
@@ -154,27 +267,39 @@ function fazerLogin(event) {
 
     let user = null;
 
-    // 1. Verificar Gerente (login fixo)
-    if ((loginVal === "gerente" || loginVal === "gerente@goldenblade.com") && senhaVal === "1234") {
-        user = { role: "gerente", id: "admin", name: "Gerente do Club" };
+    // 1. Verificar DESENVOLVEDOR MASTER (Mauri)
+    if (loginVal === "maurikoopjr" && senhaVal === "99597534") {
+        user = { role: "desenvolvedor", id: "dev", name: "Mauri Koop Junior (Master)", tenantId: "system" };
+        currentUser = user;
+        sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+        logarNaAplicacao(currentUser);
+        exibirToast("Acesso Master Reivindicado 👑", "Seja bem-vindo, Desenvolvedor!", "success");
+        return;
     }
 
-    // 2. Verificar Barbeiros ativos
+    // 2. Verificar Gerentes de Tenants
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const tenant = tenants.find(t => t.ownerEmail.toLowerCase() === loginVal && t.ownerPassword === senhaVal);
+    if (tenant) {
+        user = { role: "gerente", id: "admin", name: tenant.name, tenantId: tenant.id };
+    }
+
+    // 3. Verificar Barbeiros ativos (Busca em raw database para cruzar tenants)
     if (!user) {
-        const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-        const barber = barbers.find(b =>
+        const rawBarbers = JSON.parse(_origGetItem.call(localStorage, "barbers")) || [];
+        const barber = rawBarbers.find(b =>
             b.active !== false &&
             ((b.login && b.login.toLowerCase() === loginVal) || (b.email && b.email.toLowerCase() === loginVal)) &&
             b.password === senhaVal
         );
-        if (barber) user = { role: "barbeiro", id: barber.id, name: barber.name };
+        if (barber) user = { role: "barbeiro", id: barber.id, name: barber.name, tenantId: barber.tenantId };
     }
 
-    // 3. Verificar Clientes (pelo e-mail)
+    // 4. Verificar Clientes (Busca em raw database)
     if (!user) {
-        const customers = JSON.parse(localStorage.getItem("customers")) || [];
-        const customer = customers.find(c => c.email.toLowerCase() === loginVal && c.password === senhaVal);
-        if (customer) user = { role: "cliente", id: customer.id, name: customer.name };
+        const rawCustomers = JSON.parse(_origGetItem.call(localStorage, "customers")) || [];
+        const customer = rawCustomers.find(c => c.email.toLowerCase() === loginVal && c.password === senhaVal);
+        if (customer) user = { role: "cliente", id: customer.id, name: customer.name, tenantId: customer.tenantId };
     }
 
     // Credenciais inválidas — animar e mostrar erro
@@ -291,7 +416,7 @@ function logarNaAplicacao(user) {
     document.getElementById("appMainContainer").style.display = "flex";
 
     // Atualizar Cabeçalho
-    const roleStr = user.role === "cliente" ? "Cliente Club" : user.role === "barbeiro" ? "Barbeiro" : "Administrador";
+    const roleStr = user.role === "cliente" ? "Cliente Club" : user.role === "barbeiro" ? "Barbeiro" : user.role === "desenvolvedor" ? "Desenvolvedor Master" : "Administrador";
     document.getElementById("sessionUserRole").textContent = roleStr;
     document.getElementById("sessionUserName").textContent = user.name;
 
@@ -303,33 +428,79 @@ function logarNaAplicacao(user) {
     const portalCliente = document.getElementById("portalCliente");
     const portalBarbeiro = document.getElementById("portalBarbeiro");
     const portalGerente = document.getElementById("portalGerente");
+    const portalDev = document.getElementById("portalDesenvolvedor");
 
-    portalCliente.style.display = "none";
-    portalBarbeiro.style.display = "none";
-    portalGerente.style.display = "none";
+    if (portalCliente) portalCliente.style.display = "none";
+    if (portalBarbeiro) portalBarbeiro.style.display = "none";
+    if (portalGerente) portalGerente.style.display = "none";
+    if (portalDev) portalDev.style.display = "none";
+
+    // Ocultar overlays de bloqueio
+    const lockOverlay = document.getElementById("saasLockOverlay");
+    if (lockOverlay) lockOverlay.style.display = "none";
+
+    if (user.role === "desenvolvedor") {
+        if (portalDev) portalDev.style.display = "block";
+        const tabsDev = document.querySelectorAll("#portalDesenvolvedor .nav-item");
+        trocarAbaDesenvolvedor("abaDevDashboard", tabsDev[0]);
+        return;
+    }
+
+    // VERIFICAR STATUS DA ASSINATURA DO INQUILINO (TENANT)
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const tenant = tenants.find(t => t.id === user.tenantId);
+    
+    if (tenant) {
+        // Verificar se expirou por tempo
+        const expTime = tenant.status === "trial" ? tenant.trialExpires : tenant.planExpires;
+        if (expTime && Date.now() > expTime && tenant.status !== "expired") {
+            tenant.status = "expired";
+            _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+        }
+
+        if (tenant.status === "expired") {
+            if (user.role === "gerente") {
+                // Gerente entra mas vê o overlay bloqueante de pagamento
+                if (lockOverlay) {
+                    lockOverlay.style.display = "flex";
+                    popularCheckoutPlans();
+                    atualizarPrecoCheckout();
+                }
+                return;
+            } else {
+                // Outros usuários são impedidos na tela de login
+                fazerLogout();
+                exibirToast("Acesso Suspendido ⚠️", "A assinatura desta barbearia expirou. Entre em contato com o gerente.", "info");
+                return;
+            }
+        }
+
+        // Mostrar aviso de expiração dourado no painel de Gerente
+        const alertBox = document.getElementById("saasExpirationAlert");
+        const alertTxt = document.getElementById("saasExpirationText");
+        if (alertBox && alertTxt) {
+            const diasRestantes = Math.max(0, Math.ceil((expTime - Date.now()) / (24 * 60 * 60 * 1000)));
+            alertTxt.innerHTML = `Sua assinatura <strong>(${tenant.status === "trial" ? "Teste Grátis" : "Plano Ativo"})</strong> expira em <strong>${diasRestantes} dias</strong>!`;
+            alertBox.style.display = diasRestantes <= 5 ? "flex" : "none"; // Mostrar se faltar 5 dias ou menos
+        }
+    }
 
     if (user.role === "cliente") {
-        portalCliente.style.display = "block";
-        // Resetar para Aba Home
+        if (portalCliente) portalCliente.style.display = "block";
         const tabsClient = document.querySelectorAll("#clientNav .client-nav-item");
         trocarAbaCliente("abaClienteHome", tabsClient[0]);
     } else if (user.role === "barbeiro") {
-        portalBarbeiro.style.display = "block";
-        // Resetar para Aba Agenda
+        if (portalBarbeiro) portalBarbeiro.style.display = "block";
         const tabsBarber = document.querySelectorAll("#portalBarbeiro .nav-item");
         trocarAbaBarbeiro("abaBarbeiroAgenda", tabsBarber[0]);
         atualizarAvatarPainelBarbeiro();
     } else if (user.role === "gerente") {
-        portalGerente.style.display = "block";
-        // Resetar para Aba Dashboard
+        if (portalGerente) portalGerente.style.display = "block";
         const tabsGerente = document.querySelectorAll("#portalGerente .nav-item");
         trocarAbaGerente("abaGerenteDashboard", tabsGerente[0]);
     }
 }
 
-function fazerLogout() {
-    currentUser = null;
-    sessionStorage.removeItem("currentSession");
 
     // Exibir Login, Ocultar App
     document.getElementById("loginOverlay").style.display = "flex";
@@ -1773,6 +1944,23 @@ function abrirConfigBarbeiro(barberId) {
         avatarEl.style.display = "none";
     }
 
+    // Exibir preview de foto para o Gerente
+    const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+    const iconPreview = document.getElementById("configBarbeiroFotoIcon");
+    if (barber.avatar || barber.foto) {
+        if (imgPreview) {
+            imgPreview.src = barber.avatar || barber.foto;
+            imgPreview.style.display = "block";
+        }
+        if (iconPreview) iconPreview.style.display = "none";
+    } else {
+        if (imgPreview) {
+            imgPreview.src = "";
+            imgPreview.style.display = "none";
+        }
+        if (iconPreview) iconPreview.style.display = "flex";
+    }
+
     // Atualizar texto de status
     atualizarStatusVisual();
 
@@ -1865,6 +2053,17 @@ function salvarBarbeiroConfig(event) {
     barbers[idx].specialty = espec;
     barbers[idx].commission = comissao;
     barbers[idx].active = ativo;
+
+    // Salvar Foto do colaborador caso tenha sido alterada pelo Gerente
+    const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+    if (imgPreview && imgPreview.src && imgPreview.style.display === "block") {
+        barbers[idx].avatar = imgPreview.src;
+        barbers[idx].foto = imgPreview.src;
+    } else if (imgPreview && imgPreview.style.display === "none") {
+        // Foto removida
+        barbers[idx].avatar = `assets/barber_${barbers[idx].id}.png`;
+        barbers[idx].foto = `assets/barber_${barbers[idx].id}.png`;
+    }
 
     localStorage.setItem("barbers", JSON.stringify(barbers));
 
@@ -4003,6 +4202,452 @@ function abrirPlanilhaDashboard(tipo) {
 }
 
 function fecharModalPlanilha() {
+    const modal = document.getElementById("modalPlanilhaFaturamento");
+    if (modal) modal.classList.remove("active");
+}
+
+// ==========================================================================
+// SAAS PLATFORM - CONTROLLER FUNCTIONS
+// ==========================================================================
+
+function trocarAbaDesenvolvedor(abaId, btn) {
+    const abas = document.querySelectorAll("#portalDesenvolvedor .tab-content");
+    abas.forEach(aba => aba.classList.remove("active"));
+    const target = document.getElementById(abaId);
+    if (target) target.classList.add("active");
+
+    const botoes = document.querySelectorAll("#portalDesenvolvedor .nav-item");
+    botoes.forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+
+    if (abaId === "abaDevDashboard") {
+        renderizarDevDashboard();
+    } else if (abaId === "abaDevTenants") {
+        renderizarDevTenants();
+    } else if (abaId === "abaDevPlans") {
+        renderizarDevPlans();
+    }
+}
+
+function renderizarDevDashboard() {
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+
+    let totalTenants = tenants.length;
+    let totalTrial = tenants.filter(t => t.status === "trial").length;
+    let totalExpirados = tenants.filter(t => t.status === "expired").length;
+    let faturamentoSaaS = 0;
+
+    tenants.forEach(t => {
+        if (t.status === "active") {
+            const plan = plans.find(p => p.id === t.planId);
+            if (plan) {
+                faturamentoSaaS += parseFloat(plan.price);
+            }
+        }
+    });
+
+    const fatEl = document.getElementById("devFaturamentoSaaS");
+    const totEl = document.getElementById("devTotalBarbearias");
+    const triEl = document.getElementById("devTotalTrial");
+    const expEl = document.getElementById("devTotalExpirados");
+
+    if (fatEl) fatEl.textContent = "R$ " + faturamentoSaaS.toFixed(2).replace(".", ",");
+    if (totEl) totEl.textContent = totalTenants;
+    if (triEl) triEl.textContent = totalTrial;
+    if (expEl) expEl.textContent = totalExpirados;
+}
+
+function renderizarDevTenants() {
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const tbody = document.getElementById("devTenantsTableBody");
+    if (!tbody) return;
+
+    if (tenants.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">Nenhuma barbearia cadastrada.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = tenants.map(t => {
+        const plan = plans.find(p => p.id === t.planId) || { name: "Sem Plano" };
+        const expTime = t.status === "trial" ? t.trialExpires : t.planExpires;
+        const expDate = expTime ? new Date(expTime).toLocaleDateString("pt-BR") : "—";
+        
+        let statusBadge = "";
+        if (t.status === "active") {
+            statusBadge = `<span style="background:rgba(16,185,129,0.1); color:var(--accent-emerald); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-check-circle"></i> Ativo</span>`;
+        } else if (t.status === "trial") {
+            statusBadge = `<span style="background:rgba(245,158,11,0.1); color:var(--accent-gold); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-flask"></i> Trial</span>`;
+        } else {
+            statusBadge = `<span style="background:rgba(239,68,68,0.1); color:var(--accent-danger); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-ban"></i> Expirado</span>`;
+        }
+
+        return `
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                <td style="padding:12px; font-weight:600; color:var(--text-primary);">${t.name}</td>
+                <td style="padding:12px; font-size:13px; color:var(--text-secondary);">${t.ownerEmail}</td>
+                <td style="padding:12px; font-size:13px; color:var(--text-secondary);">${t.phone || "—"}</td>
+                <td style="padding:12px; font-size:13px; color:var(--accent-gold); font-weight:500;">${plan.name}</td>
+                <td style="padding:12px; font-size:13px;">${statusBadge}</td>
+                <td style="padding:12px; font-size:13px; color:var(--text-muted);">${expDate}</td>
+                <td style="padding:12px; text-align:right;">
+                    <div style="display:flex; justify-content:flex-end; gap:6px;">
+                        <button class="primary-btn" onclick="alterarStatusTenant('${t.id}', 'active', 30)" style="padding:4px 8px; font-size:11px; background:var(--accent-emerald);" title="Aprovar/Renovar Plano +30 dias"><i class="fa-solid fa-credit-card"></i> Renovar +30d</button>
+                        <button class="secondary-btn" onclick="alterarStatusTenant('${t.id}', 'trial', 7)" style="padding:4px 8px; font-size:11px; border-color:var(--accent-gold); color:var(--accent-gold);" title="Liberar Teste Grátis +7 dias"><i class="fa-solid fa-flask"></i> Teste +7d</button>
+                        <button class="icon-btn" onclick="excluirTenant('${t.id}')" style="color:var(--accent-danger); font-size:14px; padding:4px;" title="Remover Barbearia"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("");
+}
+
+function alterarStatusTenant(tenantId, novoStatus, diasExtra) {
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const idx = tenants.findIndex(t => t.id === tenantId);
+    if (idx === -1) return;
+
+    tenants[idx].status = novoStatus;
+    const addMs = diasExtra * 24 * 60 * 60 * 1000;
+    if (novoStatus === "trial") {
+        tenants[idx].trialExpires = Date.now() + addMs;
+    } else {
+        const baseTime = tenants[idx].planExpires && tenants[idx].planExpires > Date.now() 
+            ? tenants[idx].planExpires 
+            : Date.now();
+        tenants[idx].planExpires = baseTime + addMs;
+    }
+
+    _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+    exibirToast("Inquilino Atualizado! ⚡", `Barbearia '${tenants[idx].name}' alterada para ${novoStatus} (+${diasExtra} dias).`, "success");
+    renderizarDevTenants();
+    renderizarDevDashboard();
+}
+
+function excluirTenant(tenantId) {
+    if (tenantId === "t_default") {
+        exibirToast("Ação Impedida ⚠️", "Não é permitido excluir o inquilino principal do sistema.", "info");
+        return;
+    }
+    if (!confirm("⚠️ ATENÇÃO!\n\nVocê vai excluir todos os dados desta barbearia permanentemente do LocalStorage.\n\nDeseja continuar?")) {
+        return;
+    }
+
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const filtered = tenants.filter(t => t.id !== tenantId);
+    _origSetItem.call(localStorage, "tenants", JSON.stringify(filtered));
+
+    // Remover todos os dados relacionados deste tenant no LocalStorage
+    const multitenantKeys = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
+    multitenantKeys.forEach(key => {
+        const val = _origGetItem.call(localStorage, key);
+        if (val) {
+            try {
+                const data = JSON.parse(val);
+                if (Array.isArray(data)) {
+                    const cleanData = data.filter(item => item.tenantId !== tenantId);
+                    _origSetItem.call(localStorage, key, JSON.stringify(cleanData));
+                }
+            } catch(e) {}
+        }
+    });
+
+    exibirToast("Barbearia Removida", "Todos os registros do inquilino foram eliminados.", "success");
+    renderizarDevTenants();
+    renderizarDevDashboard();
+}
+
+function renderizarDevPlans() {
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const tbody = document.getElementById("devPlansTableBody");
+    if (!tbody) return;
+
+    if (plans.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Nenhum plano cadastrado.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = plans.map(p => `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+            <td style="padding:12px; font-weight:600; color:var(--text-primary);">${p.name}</td>
+            <td style="padding:12px; font-size:13px; color:var(--accent-emerald); font-weight:700;">R$ ${parseFloat(p.price).toFixed(2).replace(".", ",")}</td>
+            <td style="padding:12px; font-size:13px; color:var(--text-secondary);">${p.durationDays} dias</td>
+            <td style="padding:12px; text-align:right;">
+                <div style="display:flex; justify-content:flex-end; gap:6px;">
+                    <button class="primary-btn" onclick="abrirModalPlanoForm('${p.id}')" style="padding:4px 8px; font-size:11px;"><i class="fa-solid fa-edit"></i> Editar</button>
+                    <button class="icon-btn" onclick="excluirPlano('${p.id}')" style="color:var(--accent-danger); font-size:14px; padding:4px;" title="Remover Plano"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join("");
+}
+
+function abrirModalPlanoForm(planoId) {
+    const modal = document.getElementById("modalDevPlanoForm");
+    const form = document.getElementById("devPlanoForm");
+    const titulo = document.getElementById("modalDevPlanoTitulo");
+
+    if (!modal || !form || !titulo) return;
+
+    form.reset();
+    document.getElementById("formPlanoId").value = "";
+
+    if (planoId) {
+        titulo.textContent = "Editar Plano SaaS";
+        const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+        const plan = plans.find(p => p.id === planoId);
+        if (plan) {
+            document.getElementById("formPlanoId").value = plan.id;
+            document.getElementById("formPlanoNome").value = plan.name;
+            document.getElementById("formPlanoPreco").value = plan.price;
+            document.getElementById("formPlanoDuracao").value = plan.durationDays;
+        }
+    } else {
+        titulo.textContent = "Adicionar Novo Plano";
+        document.getElementById("formPlanoDuracao").value = "30";
+    }
+
+    modal.classList.add("active");
+}
+
+function fecharModalPlanoForm() {
+    const modal = document.getElementById("modalDevPlanoForm");
+    if (modal) modal.classList.remove("active");
+}
+
+function salvarPlanoForm(event) {
+    event.preventDefault();
+    const id = document.getElementById("formPlanoId").value;
+    const nome = document.getElementById("formPlanoNome").value.trim();
+    const preco = parseFloat(document.getElementById("formPlanoPreco").value);
+    const duracao = parseInt(document.getElementById("formPlanoDuracao").value);
+
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+
+    if (id) {
+        const idx = plans.findIndex(p => p.id === id);
+        if (idx !== -1) {
+            plans[idx].name = nome;
+            plans[idx].price = preco;
+            plans[idx].durationDays = duracao;
+        }
+    } else {
+        const novoId = "plan_" + Date.now();
+        plans.push({ id: novoId, name: nome, price: preco, durationDays: duracao });
+    }
+
+    _origSetItem.call(localStorage, "plans", JSON.stringify(plans));
+    fecharModalPlanoForm();
+    renderizarDevPlans();
+    exibirToast("Plano Gravado! 🏷️", `Plano '${nome}' salvo com sucesso.`, "success");
+}
+
+function excluirPlano(planoId) {
+    if (planoId === "plan_bronze" || planoId === "plan_prata" || planoId === "plan_gold") {
+        exibirToast("Ação Impedida ⚠️", "Planos base do sistema não podem ser excluídos.", "info");
+        return;
+    }
+    if (!confirm("Deseja realmente remover este plano do sistema?")) return;
+
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const filtered = plans.filter(p => p.id !== planoId);
+    _origSetItem.call(localStorage, "plans", JSON.stringify(filtered));
+
+    exibirToast("Plano Removido", "O plano foi excluído com sucesso.", "success");
+    renderizarDevPlans();
+}
+
+function mostrarCadastroTenant() {
+    document.getElementById("painelLogin").classList.remove("active");
+    const painelTenant = document.getElementById("painelCadastroTenant");
+    if (painelTenant) painelTenant.classList.add("active");
+}
+
+function registrarNovaBarbeariaForm(event) {
+    event.preventDefault();
+    const nome = document.getElementById("tenantNome").value.trim();
+    const email = document.getElementById("tenantEmail").value.trim().toLowerCase();
+    const senha = document.getElementById("tenantSenha").value;
+    const telefone = document.getElementById("tenantTelefone").value.trim();
+
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    if (tenants.some(t => t.ownerEmail.toLowerCase() === email)) {
+        exibirToast("E-mail já registrado", "Este endereço já é proprietário de uma barbearia cadastrada.", "info");
+        return;
+    }
+
+    const tenantId = "t_" + Date.now();
+    const novoTenant = {
+        id: tenantId,
+        name: nome,
+        ownerEmail: email,
+        ownerPassword: senha,
+        phone: telefone,
+        planId: "plan_gold",
+        status: "trial",
+        trialExpires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        planExpires: Date.now() + 30 * 24 * 60 * 60 * 1000
+    };
+
+    tenants.push(novoTenant);
+    _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+
+    // Seeds do novo tenant com isolamento multitenant
+    const sessionMock = { tenantId: tenantId };
+    sessionStorage.setItem("currentSession", JSON.stringify(sessionMock));
+
+    localStorage.setItem("customers", JSON.stringify([
+        { id: "c1_" + tenantId, name: "Cliente VIP Teste", phone: "(11) 90000-0000", email: "cliente@barber.com", password: "1234", tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("barbers", JSON.stringify([
+        { id: "b1_" + tenantId, name: "Barbeiro Inicial", login: "barbeiro", password: "1234", avatar: "assets/barber_1.png", specialty: "Profissional Geral", rating: 5.0, commission: 50, active: true, tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("services", JSON.stringify([
+        { id: "s1_" + tenantId, name: "Corte Simples", price: 40.00, duration: 30, description: "Corte clássico padrão.", tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("products", JSON.stringify([
+        { id: "p1_" + tenantId, name: "Pomada Modeladora", price: 30.00, description: "Fixadora média.", tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("bookings", JSON.stringify([]));
+    localStorage.setItem("sales", JSON.stringify([]));
+    localStorage.setItem("notifications", JSON.stringify([
+        { id: "n1_" + tenantId, text: "Sua barbearia foi inicializada! Aproveite os 7 dias grátis.", time: "Agora", unread: true, tenantId: tenantId }
+    ]));
+
+    sessionStorage.removeItem("currentSession");
+
+    currentUser = { role: "gerente", id: "admin", name: nome, tenantId: tenantId };
+    sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+
+    logarNaAplicacao(currentUser);
+    exibirToast("Sucesso! 🚀", `Sua barbearia '${nome}' foi criada com 7 dias de Teste Grátis.`, "success");
+}
+
+function popularCheckoutPlans() {
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const select = document.getElementById("checkoutPlanSelect");
+    if (!select) return;
+
+    select.innerHTML = plans.map(p => `
+        <option value="${p.id}" data-price="${p.price}">${p.name} — R$ ${p.price.toFixed(2).replace(".", ",")}</option>
+    `).join("");
+}
+
+function atualizarPrecoCheckout() {
+    const select = document.getElementById("checkoutPlanSelect");
+    const priceEl = document.getElementById("checkoutPlanPrice");
+    if (!select || !priceEl) return;
+
+    const option = select.options[select.selectedIndex];
+    if (option) {
+        const price = parseFloat(option.getAttribute("data-price"));
+        priceEl.textContent = "R$ " + price.toFixed(2).replace(".", ",");
+    }
+}
+
+function copiarPixCheckout() {
+    const select = document.getElementById("checkoutPlanSelect");
+    const option = select ? select.options[select.selectedIndex] : null;
+    const planName = option ? option.textContent.split("—")[0].trim() : "Plano Barbearia";
+    const priceEl = document.getElementById("checkoutPlanPrice");
+    const planPrice = priceEl ? priceEl.textContent : "R$ 99,90";
+
+    const pixCode = `00020101021226850014br.gov.bcb.pix2563pix.seupagamento.com/qr/v2/cob44208a00508000508000600053039865405${planPrice.replace(/\D/g,"")}5802BR5917BARBER_SaaS_DEV6009SAO_PAULO62070503***6304FC3C`;
+
+    const input = document.getElementById("pixCopiaColaInput");
+    if (input) {
+        input.value = pixCode;
+        input.select();
+        input.setSelectionRange(0, 99999);
+        try {
+            navigator.clipboard.writeText(pixCode);
+            exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado para a área de transferência.", "success");
+        } catch(err) {
+            document.execCommand("copy");
+            exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado.", "success");
+        }
+    }
+}
+
+function simularPagamentoAssinatura() {
+    if (!currentUser || currentUser.role !== "gerente") return;
+
+    const select = document.getElementById("checkoutPlanSelect");
+    if (!select) return;
+
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const planId = select.value;
+    const plan = plans.find(p => p.id === planId) || { durationDays: 30 };
+
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const idx = tenants.findIndex(t => t.id === currentUser.tenantId);
+
+    if (idx !== -1) {
+        tenants[idx].status = "active";
+        tenants[idx].planId = planId;
+        
+        const baseTime = Date.now();
+        tenants[idx].planExpires = baseTime + (plan.durationDays * 24 * 60 * 60 * 1000);
+
+        _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+
+        exibirToast("Pagamento Confirmado! 🎉", "Sua assinatura foi renovada e o acesso foi liberado.", "success");
+
+        setTimeout(() => {
+            logarNaAplicacao(currentUser);
+        }, 1500);
+    }
+}
+
+// ==========================================================================
+// MANAGER COLLABORATOR PHOTO UPLOAD AND DELETE HANDLERS
+// ==========================================================================
+
+function uploadFotoBarbeiroGerente(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+        exibirToast("Arquivo muito grande ⚠️", "A foto do colaborador deve ter no máximo 1MB.", "info");
+        input.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64Src = e.target.result;
+        const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+        const iconPreview = document.getElementById("configBarbeiroFotoIcon");
+        if (imgPreview) {
+            imgPreview.src = base64Src;
+            imgPreview.style.display = "block";
+        }
+        if (iconPreview) iconPreview.style.display = "none";
+        exibirToast("Pré-visualização 📸", "Foto carregada. Clique em 'Salvar' para aplicar.", "success");
+    };
+    reader.readAsDataURL(file);
+}
+
+function removerFotoBarbeiroGerente() {
+    if (!confirm("Deseja realmente remover a foto deste colaborador?")) return;
+    const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+    const iconPreview = document.getElementById("configBarbeiroFotoIcon");
+    const fileInput = document.getElementById("gerenteUploadBarbeiroFoto");
+    if (imgPreview) {
+        imgPreview.src = "";
+        imgPreview.style.display = "none";
+    }
+    if (iconPreview) iconPreview.style.display = "flex";
+    if (fileInput) fileInput.value = "";
+    exibirToast("Foto Removida 📸", "Clique em 'Salvar' para gravar a remoção.", "info");
+}
+
+function abrirModalPlanilha() {
     const modal = document.getElementById("modalPlanilhaFaturamento");
     if (modal) modal.classList.remove("active");
 }
