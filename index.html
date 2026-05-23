@@ -522,11 +522,34 @@
                     </div>
                 </div>
 
+                <!-- Banner de Assinatura SaaS -->
+                <div class="saas-upgrade-card" style="background: linear-gradient(135deg, rgba(197, 160, 40, 0.1), transparent); border: 1px solid var(--accent-gold); padding: 16px; border-radius: var(--border-radius-sm); margin-top: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+                    <h3 style="color: var(--accent-gold); margin: 0; font-size: 16px;"><i class="fa-solid fa-crown"></i> Assinatura do Sistema</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin: 0; max-width: 400px;">Assine agora ou renove o seu plano para garantir acesso ininterrupto a todas as ferramentas premium da The Golden Blade Platform.</p>
+                    <button class="primary-btn" onclick="abrirPagamentoSaaS()">
+                        <i class="fa-solid fa-credit-card"></i> Renovar / Assinar Plano
+                    </button>
+                </div>
+
                 <!-- Detalhamento de Comissões e Desempenho -->
                 <div class="barber-performance-section">
                     <h3 class="section-title" style="font-size: 18px; margin-bottom: 20px;">Acompanhamento e Configuração de Comissão Real-Time</h3>
                     <div class="barber-perf-list" id="dashboardBarbeirosPerformanceList">
                         <!-- Gerado Dinamicamente com entrada de comissão (%) -->
+                    </div>
+                </div>
+
+                <!-- TAREFAS DE PÓS-VENDA (WHATSAPP CRM) -->
+                <div class="pos-venda-section" style="margin-top: 30px; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--border-radius-lg); padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">
+                            <i class="fa-brands fa-whatsapp" style="color: #25D366; margin-right: 8px;"></i>
+                            Tarefas de Pós-Venda
+                        </h3>
+                        <span style="font-size: 12px; color: var(--text-muted);">Clientes atendidos há mais de 1h</span>
+                    </div>
+                    <div id="listaPendenciasPosVenda" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Gerado via JS -->
                     </div>
                 </div>
             </section>
@@ -830,7 +853,103 @@
 
         </main>
 
+        <!-- ==========================================
+             PORTAL DO DESENVOLVEDOR (Master)
+             ========================================== -->
+        <main id="portalDesenvolvedor" style="display: none;">
+            <!-- MENU SUPERIOR DESENVOLVEDOR -->
+            <nav class="manager-navigation" style="grid-template-columns: repeat(4, 1fr);">
+                <button class="nav-item active" onclick="trocarAbaDesenvolvedor('abaDevDashboard', this)">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </button>
+                <button class="nav-item" onclick="trocarAbaDesenvolvedor('abaDevTenants', this)">
+                    <i class="fa-solid fa-store"></i> Barbearias (Tenants)
+                </button>
+                <button class="nav-item" onclick="trocarAbaDesenvolvedor('abaDevPlans', this)">
+                    <i class="fa-solid fa-tags"></i> Planos & Preços
+                </button>
+                <button class="nav-item" onclick="fazerLogout()" style="color: var(--accent-danger); border-color: rgba(244,63,94,0.3);">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sair Master
+                </button>
+            </nav>
 
+            <!-- ABA DEV: DASHBOARD -->
+            <section id="abaDevDashboard" class="tab-content active">
+                <h2 class="section-title">Dashboard SaaS - Visão Global</h2>
+                <div class="admin-stats-grid">
+                    <div class="stat-card gold-border">
+                        <h3 class="stat-card-title">Receita Recorrente Mensal (MRR)</h3>
+                        <div class="stat-card-value" id="devFaturamentoSaaS">R$ 0,00</div>
+                        <div class="stat-card-trend"><span style="color:var(--text-secondary);">De assinaturas ativas</span></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-card-title">Total de Barbearias</h3>
+                        <div class="stat-card-value" id="devTotalBarbearias" style="color: var(--accent-emerald);">0</div>
+                        <div class="stat-card-trend">Cadastradas no sistema</div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-store-check"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-card-title">Testes Grátis / Expiradas</h3>
+                        <div class="stat-card-value" style="color: var(--accent-gold);">
+                            <span id="devTotalTrial">0</span> <span style="font-size:16px;color:var(--text-muted);">/</span> <span id="devTotalExpirados" style="color:var(--accent-danger);">0</span>
+                        </div>
+                        <div class="stat-card-trend"><span style="color:var(--text-secondary);">Potenciais clientes</span></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABA DEV: GESTÃO DE BARBEARIAS (TENANTS) -->
+            <section id="abaDevTenants" class="tab-content">
+                <h2 class="section-title">Controle de Barbearias (Inquilinos)</h2>
+                <div class="customer-table-container">
+                    <table class="customer-table">
+                        <thead>
+                            <tr>
+                                <th>Nome da Barbearia</th>
+                                <th>Administrador</th>
+                                <th>Plano Escolhido</th>
+                                <th>Status / Expiração</th>
+                                <th style="text-align: right;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devTenantsTableBody">
+                            <!-- Gerado dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ABA DEV: GESTÃO DE PLANOS (CRUD) -->
+            <section id="abaDevPlans" class="tab-content">
+                <div class="crud-section">
+                    <div class="crud-card">
+                        <div class="crud-header">
+                            <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">Planos de Assinatura do App</h3>
+                            <button class="primary-btn" onclick="abrirModalPlanoForm(null)">
+                                <i class="fa-solid fa-circle-plus"></i> Criar Novo Plano
+                            </button>
+                        </div>
+                        <div class="customer-table-container">
+                            <table class="customer-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome do Plano</th>
+                                        <th>Preço Mensal</th>
+                                        <th>Duração</th>
+                                        <th style="text-align: right;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devPlansTableBody">
+                                    <!-- Gerado dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <!-- ==========================================
@@ -1246,42 +1365,43 @@
     </div>
 
     <!-- LOCK OVERLAY: ASSINATURA EXPIRADA -->
-    <div class="lock-overlay" id="saasLockOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-primary); z-index:99999; align-items:center; justify-content:center; padding: 20px;">
-        <div class="login-card" style="max-width: 480px; border-color: var(--accent-danger); box-shadow: 0 0 30px rgba(239,68,68,0.15); width: 100%;">
-            <div class="login-logo" style="margin-bottom: 20px; text-align: center;">
-                <div class="login-logo-icon" style="background: rgba(239,68,68,0.1); color:var(--accent-danger); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto; font-size: 24px;"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                <h2 style="color: var(--accent-danger); margin: 0; font-size: 20px;">Acesso Bloqueado</h2>
-                <span style="color:var(--text-muted); font-size: 13px;">Assinatura do App Expirada</span>
-            </div>
-            <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:20px; line-height:1.6;">
-                O período de testes de 7 dias ou sua mensalidade expirou. Escolha um plano de renovação abaixo para liberar o sistema na hora!
-            </p>
-            
-            <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label" for="checkoutPlanSelect">Selecione o Plano</label>
-                <select class="form-input" id="checkoutPlanSelect" onchange="atualizarPrecoCheckout()"></select>
-            </div>
-            
-            <div class="fidelity-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:16px; margin-bottom:20px; text-align:center; border-radius: var(--border-radius-sm);">
-                <span style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Valor via PIX:</span>
-                <strong style="font-size:24px; color:var(--accent-gold);" id="checkoutPlanPrice">R$ 0,00</strong>
-            </div>
-
-            <!-- Checkout PIX Section -->
-            <div class="checkout-pix-box" style="display:flex; flex-direction:column; align-items:center; background:var(--bg-tertiary); padding:16px; border-radius:var(--border-radius-sm); margin-bottom:20px;">
-                <div style="width:130px; height:130px; background:white; padding:8px; border-radius:8px; margin-bottom:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 15px rgba(0,0,0,0.5);">
-                    <!-- Beautiful CSS pixelated PIX QR Code representation -->
-                    <div style="width:100%; height:100%; background:repeating-conic-gradient(from 45deg, #000 0% 25%, #fff 0% 50%) 50% / 14px 14px; opacity:0.85;"></div>
+    <div class="lock-overlay" id="saasLockOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-primary); z-index:99999; overflow-y:auto; padding: 20px;">
+        <div style="min-height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 20px 0;">
+            <div class="login-card" style="max-width: 480px; margin: 0 auto; border-color: var(--accent-gold); box-shadow: 0 0 30px rgba(197,160,40,0.15); width: 100%;">
+                <div class="login-logo" style="margin-bottom: 20px; text-align: center;">
+                    <div class="login-logo-icon" style="background: rgba(197,160,40,0.1); color:var(--accent-gold); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto; font-size: 24px;"><i class="fa-solid fa-lock"></i></div>
+                    <h2 style="color: var(--accent-gold); margin: 0; font-size: 20px;">Assinatura do App</h2>
+                    <span style="color:var(--text-muted); font-size: 13px;">Página Segura de Pagamento</span>
                 </div>
-                <button class="secondary-btn" style="width:100%; font-size:12px; padding:8px 12px; margin-bottom:6px;" onclick="copiarPixCheckout()">
-                    <i class="fa-solid fa-copy"></i> Copiar Código PIX Copia e Cola
-                </button>
-                <input type="text" id="pixCopiaColaInput" readonly style="position:absolute; left:-9999px;">
-            </div>
+                <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:20px; line-height:1.6;">
+                    Escolha um plano de renovação abaixo para assinar a plataforma e liberar o sistema de agendamento na hora!
+                </p>
+                
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label" for="checkoutPlanSelect">Selecione o Plano</label>
+                    <select class="form-input" id="checkoutPlanSelect" onchange="atualizarPrecoCheckout()"></select>
+                </div>
+                
+                <div class="fidelity-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:16px; margin-bottom:20px; text-align:center; border-radius: var(--border-radius-sm);">
+                    <span style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Valor via PIX:</span>
+                    <strong style="font-size:24px; color:var(--accent-gold);" id="checkoutPlanPrice">R$ 0,00</strong>
+                </div>
 
-            <div style="display:flex; gap:10px;">
-                <button class="secondary-btn" style="flex:1;" onclick="fazerLogout()"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
-                <button class="primary-btn" style="flex:2;" onclick="simularPagamentoAssinatura()"><i class="fa-solid fa-check-circle"></i> Confirmar Pagamento Simulado</button>
+                <!-- Checkout PIX Section -->
+                <div class="checkout-pix-box" style="display:flex; flex-direction:column; align-items:center; background:var(--bg-tertiary); padding:16px; border-radius:var(--border-radius-sm); margin-bottom:20px;">
+                    <div style="width:150px; height:150px; background:white; padding:8px; border-radius:8px; margin-bottom:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 15px rgba(0,0,0,0.5);">
+                        <img id="pixQrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=00020101021226850014br.gov.bcb.pix2563pix.seupagamento.com/qr/v2/cob44208a0050800050800060005303986540599905802BR5917BARBER_SaaS_DEV6009SAO_PAULO62070503***6304FC3C" alt="QR Code PIX Real" style="width:100%; height:100%; object-fit:contain;">
+                    </div>
+                    <button class="secondary-btn" style="width:100%; font-size:12px; padding:8px 12px; margin-bottom:6px;" onclick="copiarPixCheckout()">
+                        <i class="fa-solid fa-copy"></i> Copiar Código PIX Copia e Cola
+                    </button>
+                    <input type="text" id="pixCopiaColaInput" readonly style="position:absolute; left:-9999px;">
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button class="secondary-btn" style="flex:1;" onclick="fecharPagamentoSaaS()"><i class="fa-solid fa-xmark"></i> Fechar</button>
+                    <button class="primary-btn" style="flex:2;" onclick="simularPagamentoAssinatura()"><i class="fa-solid fa-check-circle"></i> Confirmar Pagamento</button>
+                </div>
             </div>
         </div>
     </div>

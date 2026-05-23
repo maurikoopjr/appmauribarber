@@ -558,47 +558,54 @@ h1, h2, h3, h4, h5, h6 {
     transition: var(--transition-smooth);
 }
 
-/* Barra de Navegação dos Profissionais (Gerente e Barbeiro) */
+/* Barra de Navegação dos Profissionais (Gerente, Barbeiro, Desenvolvedor) */
 .manager-navigation {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
     background: var(--bg-secondary);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: var(--border-radius-md);
-    padding: 6px;
+    padding: 8px;
     margin-bottom: 20px;
-    gap: 6px;
-    overflow-x: hidden;
 }
 
 @media (max-width: 768px) {
     .manager-navigation {
-        gap: 4px;
-        padding: 4px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        padding: 6px;
     }
     .nav-item {
-        padding: 8px 10px !important;
-        font-size: 11px !important;
-        gap: 5px !important;
+        flex-direction: column !important;
+        padding: 10px 4px !important;
+        font-size: 9px !important;
+        gap: 6px !important;
+        text-align: center;
+        white-space: normal !important;
+        line-height: 1.2;
+    }
+    .nav-item i {
+        font-size: 18px !important;
     }
 }
 
 .nav-item {
     background: transparent;
-    border: none;
+    border: 1px solid transparent;
     outline: none;
     color: var(--text-secondary);
-    padding: 12px 20px;
+    padding: 12px 14px;
     font-family: 'Outfit', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     border-radius: var(--border-radius-sm);
     transition: var(--transition-fast);
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 8px;
     white-space: nowrap;
 }
 

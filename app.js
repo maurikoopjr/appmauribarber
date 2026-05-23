@@ -373,6 +373,10 @@ function fazerLogout() {
     currentUser = null;
     sessionStorage.removeItem("currentSession");
 
+    // Fechar overlay de checkout caso esteja aberto
+    const saasOverlay = document.getElementById("saasLockOverlay");
+    if (saasOverlay) saasOverlay.style.display = "none";
+
     // Exibir Login, Ocultar App
     document.getElementById("loginOverlay").style.display = "flex";
     document.getElementById("appMainContainer").style.display = "none";
@@ -563,6 +567,7 @@ function logarNaAplicacao(user) {
         const tabsGerente = document.querySelectorAll("#portalGerente .nav-item");
         trocarAbaGerente("abaGerenteDashboard", tabsGerente[0]);
     }
+}
 
 // ==========================================================================
 // ABA BARBEIRO - CONTROLES (SPA DO BARBEIRO)
@@ -2416,10 +2421,13 @@ function filtrarClientes() {
     filtrados.forEach(c => {
         const ultimaDataISO = obterUltimoServicoCliente(c.id);
         const ultimoServicoBadge = formatarUltimoServicoBadge(ultimaDataISO);
+        const cleanPhone = c.phone ? c.phone.replace(/\D/g, "") : "";
+        const whatsappBtn = cleanPhone ? `<a href="https://wa.me/55${cleanPhone}" target="_blank" class="icon-btn" style="color:#25D366; margin-left:8px; display:inline-flex; align-items:center; text-decoration:none;" title="Conversar no WhatsApp"><i class="fa-brands fa-whatsapp" style="font-size:16px;"></i></a>` : "";
+        
         tbody.innerHTML += `
             <tr>
                 <td class="customer-name-col">${c.name}</td>
-                <td>${c.phone}</td>
+                <td style="display:flex; align-items:center;">${c.phone} ${whatsappBtn}</td>
                 <td>${c.email}</td>
                 <td>${ultimoServicoBadge}</td>
                 <td style="text-align: right;">
@@ -2486,10 +2494,13 @@ renderizarClientes = function() {
         customers.forEach(c => {
             const ultimaDataISO = obterUltimoServicoCliente(c.id);
             const ultimoServicoBadge = formatarUltimoServicoBadge(ultimaDataISO);
+            const cleanPhone = c.phone ? c.phone.replace(/\D/g, "") : "";
+            const whatsappBtn = cleanPhone ? `<a href="https://wa.me/55${cleanPhone}" target="_blank" class="icon-btn" style="color:#25D366; margin-left:8px; display:inline-flex; align-items:center; text-decoration:none;" title="Conversar no WhatsApp"><i class="fa-brands fa-whatsapp" style="font-size:16px;"></i></a>` : "";
+            
             gerenteTableBody.innerHTML += `
                 <tr>
                     <td class="customer-name-col">${c.name}</td>
-                    <td>${c.phone}</td>
+                    <td style="display:flex; align-items:center;">${c.phone} ${whatsappBtn}</td>
                     <td>${c.email}</td>
                     <td>${ultimoServicoBadge}</td>
                     <td style="text-align: right;">
@@ -4583,6 +4594,43 @@ function registrarNovaBarbeariaForm(event) {
     exibirToast("Sucesso! 🚀", `Sua barbearia '${nome}' foi criada com 7 dias de Teste Grátis.`, "success");
 }
 
+// ==========================================================================
+// GERADOR DE PIX VÁLIDO (BR CODE) COM CRC16
+// ==========================================================================
+function generatePixPayload(key, name, city, amount, reference) {
+    function formatField(id, value) {
+        return id + String(value.length).padStart(2, '0') + value;
+    }
+    let payload = "";
+    payload += formatField("00", "01"); // Payload Format Indicator
+    payload += formatField("01", "11"); // Point of Initiation (static)
+    let gui = formatField("00", "br.gov.bcb.pix");
+    let keyField = formatField("01", key);
+    payload += formatField("26", gui + keyField);
+    payload += formatField("52", "0000"); // Merchant Category
+    payload += formatField("53", "986"); // Currency BRL
+    if (amount) payload += formatField("54", amount); // Amount
+    payload += formatField("58", "BR"); // Country
+    payload += formatField("59", name.substring(0, 25)); // Merchant Name
+    payload += formatField("60", city.substring(0, 15)); // Merchant City
+    let ref = formatField("05", reference.substring(0, 25));
+    payload += formatField("62", ref);
+    payload += "6304";
+    let crc = 0xFFFF;
+    for (let i = 0; i < payload.length; i++) {
+        crc ^= payload.charCodeAt(i) << 8;
+        for (let j = 0; j < 8; j++) {
+            if ((crc & 0x8000) !== 0) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc = crc << 1;
+            }
+        }
+        crc &= 0xFFFF;
+    }
+    return payload + crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
 function popularCheckoutPlans() {
     const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
     const select = document.getElementById("checkoutPlanSelect");
@@ -4602,30 +4650,60 @@ function atualizarPrecoCheckout() {
     if (option) {
         const price = parseFloat(option.getAttribute("data-price"));
         priceEl.textContent = "R$ " + price.toFixed(2).replace(".", ",");
+        
+        // Gerar PIX Dinâmico e Válido para escanear
+        const amountStr = price.toFixed(2);
+        
+        // Tratar a chave PIX enviada (se for telefone sem +55, adiciona, pois a norma do BC exige)
+        let chavePix = "47988392282";
+        if (chavePix.length === 11 && chavePix.startsWith("479")) {
+            chavePix = "+55" + chavePix; // Para chave de telefone
+        }
+        
+        const validPix = generatePixPayload(chavePix, "Mauri Koop Junior", "Sao Paulo", amountStr, "SaaS");
+        
+        // Atualizar QR Code Imagem
+        const qrImg = document.getElementById("pixQrCodeImg");
+        if (qrImg) {
+            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(validPix)}`;
+        }
+        
+        // Atualizar Input Oculto para Cópia
+        const inputCopia = document.getElementById("pixCopiaColaInput");
+        if (inputCopia) {
+            inputCopia.value = validPix;
+        }
     }
 }
 
 function copiarPixCheckout() {
-    const select = document.getElementById("checkoutPlanSelect");
-    const option = select ? select.options[select.selectedIndex] : null;
-    const planName = option ? option.textContent.split("—")[0].trim() : "Plano Barbearia";
-    const priceEl = document.getElementById("checkoutPlanPrice");
-    const planPrice = priceEl ? priceEl.textContent : "R$ 99,90";
-
-    const pixCode = `00020101021226850014br.gov.bcb.pix2563pix.seupagamento.com/qr/v2/cob44208a00508000508000600053039865405${planPrice.replace(/\D/g,"")}5802BR5917BARBER_SaaS_DEV6009SAO_PAULO62070503***6304FC3C`;
-
     const input = document.getElementById("pixCopiaColaInput");
     if (input) {
-        input.value = pixCode;
         input.select();
         input.setSelectionRange(0, 99999);
         try {
-            navigator.clipboard.writeText(pixCode);
+            navigator.clipboard.writeText(input.value);
             exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado para a área de transferência.", "success");
         } catch(err) {
             document.execCommand("copy");
             exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado.", "success");
         }
+    }
+}
+
+function abrirPagamentoSaaS() {
+    const lockOverlay = document.getElementById("saasLockOverlay");
+    if (lockOverlay) {
+        lockOverlay.style.display = "flex";
+        popularCheckoutPlans();
+        atualizarPrecoCheckout();
+    }
+}
+
+function fecharPagamentoSaaS() {
+    const lockOverlay = document.getElementById("saasLockOverlay");
+    if (lockOverlay) {
+        lockOverlay.style.display = "none";
     }
 }
 
