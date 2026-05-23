@@ -3,7 +3,28 @@
    ========================================================================== */
 
 // ==========================================================================
-// CAPA MULTITENANT SAAS (PROTOTYPE Storage OVERRIDES)
+// FIREBASE CONFIGURATION E INICIALIZAÇÃO (COMPAT V8)
+// ==========================================================================
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDieJPR5zEgBzK9Y_LzFUZQBwsVZKKJIsM",
+  authDomain: "teste-app-mauri-barber.firebaseapp.com",
+  projectId: "teste-app-mauri-barber",
+  storageBucket: "teste-app-mauri-barber.firebasestorage.app",
+  messagingSenderId: "295258163520",
+  appId: "1:295258163520:web:0b8d914217ba5cd5a312a5",
+  measurementId: "G-YED9V5N1DP"
+};
+
+// Initialize Firebase
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+// ==========================================================================
+// CAPA MULTITENANT SAAS E SINCRONIZAÇÃO FIREBASE
 // ==========================================================================
 
 const _origGetItem = Storage.prototype.getItem;
@@ -71,15 +92,97 @@ Storage.prototype.setItem = function(key, value) {
             });
             
             const merged = [...otherTenantsData, ...updatedNewData];
-            return _origSetItem.call(this, key, JSON.stringify(merged));
+            const strVal = JSON.stringify(merged);
+            _origSetItem.call(this, key, strVal);
+            sincronizarComFirebase(key, tenantId, updatedNewData);
+            return;
         } else if (newData && typeof newData === "object") {
             newData.tenantId = tenantId;
-            return _origSetItem.call(this, key, JSON.stringify(newData));
+            const strVal = JSON.stringify(newData);
+            _origSetItem.call(this, key, strVal);
+            sincronizarComFirebase(key, tenantId, newData);
+            return;
         }
     } catch(e) {}
 
-    return _origSetItem.call(this, key, value);
+    const ret = _origSetItem.call(this, key, value);
+    sincronizarComFirebase(key, getActiveTenantId(), value);
+    return ret;
 };
+
+// ==========================================================================
+// FUNÇÕES DE SINCRONIZAÇÃO FIREBASE (UPLOAD E DOWNLOAD)
+// ==========================================================================
+let firebaseListeners = [];
+
+function sincronizarComFirebase(key, tenantId, data) {
+    if (!tenantId || tenantId === "t_default") return;
+    
+    // Evita upload se o desenvolvedor está acessando a master db
+    if (currentUser && currentUser.role === "desenvolvedor") return;
+
+    // Converte para string para salvar genérico no Firestore
+    const dataStr = typeof data === "string" ? data : JSON.stringify(data);
+    
+    // Salva na coleção do Inquilino
+    db.collection('barbearias_dados')
+      .doc(tenantId)
+      .collection('storage')
+      .doc(key)
+      .set({ payload: dataStr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+      .catch(e => console.error("Erro ao sincronizar " + key, e));
+}
+
+function iniciarEscutaFirebase() {
+    const tenantId = getActiveTenantId();
+    if (!tenantId || tenantId === "t_default") return;
+
+    // Limpar listeners antigos
+    firebaseListeners.forEach(unsub => unsub());
+    firebaseListeners = [];
+
+    const multitenantKeys = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
+
+    multitenantKeys.forEach(key => {
+        const unsub = db.collection('barbearias_dados')
+          .doc(tenantId)
+          .collection('storage')
+          .doc(key)
+          .onSnapshot(doc => {
+              if (doc.exists) {
+                  const dataStr = doc.data().payload;
+                  
+                  // Atualizar localStorage local silenciosamente
+                  const rawVal = _origGetItem.call(localStorage, key);
+                  let currentRaw = [];
+                  try { currentRaw = JSON.parse(rawVal) || []; } catch(e){}
+                  
+                  try {
+                      const incomingData = JSON.parse(dataStr);
+                      // Mesclar com os dados dos outros tenants se for array
+                      if (Array.isArray(currentRaw) && Array.isArray(incomingData)) {
+                          const otherTenants = currentRaw.filter(i => i.tenantId !== tenantId);
+                          _origSetItem.call(localStorage, key, JSON.stringify([...otherTenants, ...incomingData]));
+                      } else {
+                          // Se for object
+                          _origSetItem.call(localStorage, key, dataStr);
+                      }
+                      
+                      // Forçar atualização da UI baseada na role atual (se estiver logado)
+                      if (currentUser && currentUser.role === "gerente") {
+                          if (document.getElementById("abaGerenteDashboard").classList.contains("active")) atualizarDashboard();
+                          if (document.getElementById("abaGerenteAgenda").classList.contains("active")) renderizarAgendaTimeline();
+                      } else if (currentUser && currentUser.role === "barbeiro") {
+                          if (document.getElementById("abaBarbeiroAgenda").classList.contains("active")) renderizarAgendaBarbeiro();
+                      }
+                  } catch (e) {
+                      _origSetItem.call(localStorage, key, dataStr);
+                  }
+              }
+          });
+        firebaseListeners.push(unsub);
+    });
+}
 
 // Estado da Sessão Ativa
 let currentUser = null; // Guardará o perfil e dados do usuário logado
@@ -312,66 +415,114 @@ function _migrarAutenticacao() {
 // Mantida por compatibilidade com chamadas internas (não exibe selects)
 function popularListasLogin() { /* selects removidos — login por email/senha */ }
 
-function fazerLogin(event) {
+async function fazerLogin(event) {
     event.preventDefault();
-    const loginVal = document.getElementById("loginEmail").value.trim().toLowerCase();
-    const senhaVal = document.getElementById("loginSenha").value;
+    const btn = document.querySelector(".login-btn");
+    const originalBtnHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Entrando...';
+    btn.disabled = true;
 
-    let user = null;
+    try {
+        const loginVal = document.getElementById("loginEmail").value.trim().toLowerCase();
+        const senhaVal = document.getElementById("loginSenha").value;
 
-    // 1. Verificar DESENVOLVEDOR MASTER (Mauri)
-    if (loginVal === "maurikoopjr" && senhaVal === "99597534") {
-        user = { role: "desenvolvedor", id: "dev", name: "Mauri Koop Junior (Master)", tenantId: "system" };
+        let user = null;
+
+        // 1. Verificar DESENVOLVEDOR MASTER (Mauri)
+        if (loginVal === "maurikoopjr" && senhaVal === "99597534") {
+            user = { role: "desenvolvedor", id: "dev", name: "Mauri Koop Junior (Master)", tenantId: "system", email: "maurikoopjr@thegoldenblade.com" };
+        }
+
+        // 2. Verificar Gerentes de Tenants
+        if (!user) {
+            const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+            const tenant = tenants.find(t => t.ownerEmail.toLowerCase() === loginVal && t.ownerPassword === senhaVal);
+            if (tenant) user = { role: "gerente", id: "admin", name: tenant.name, tenantId: tenant.id, email: tenant.ownerEmail };
+        }
+
+        // 3. Verificar Barbeiros ativos (Busca em raw database para cruzar tenants)
+        if (!user) {
+            const rawBarbers = JSON.parse(_origGetItem.call(localStorage, "barbers")) || [];
+            const barber = rawBarbers.find(b =>
+                b.active !== false &&
+                ((b.login && b.login.toLowerCase() === loginVal) || (b.email && b.email.toLowerCase() === loginVal)) &&
+                b.password === senhaVal
+            );
+            if (barber) user = { role: "barbeiro", id: barber.id, name: barber.name, tenantId: barber.tenantId, email: barber.email || `${barber.login}@thegoldenblade.com` };
+        }
+
+        // 4. Verificar Clientes (Busca em raw database)
+        if (!user) {
+            const rawCustomers = JSON.parse(_origGetItem.call(localStorage, "customers")) || [];
+            const customer = rawCustomers.find(c => c.email.toLowerCase() === loginVal && c.password === senhaVal);
+            if (customer) user = { role: "cliente", id: customer.id, name: customer.name, tenantId: customer.tenantId, email: customer.email };
+        }
+
+        // Credenciais inválidas (Local)
+        if (!user) {
+            throw new Error("E-mail/login ou senha incorretos.");
+        }
+
+        // 5. INTEGRAÇÃO FIREBASE AUTH (O Coração da Segurança)
+        let fbEmail = user.email || `${loginVal}@thegoldenblade.com`;
+        
+        try {
+            await firebase.auth().signInWithEmailAndPassword(fbEmail, senhaVal);
+        } catch (error) {
+            // Se o erro for que o usuário não existe no Firebase, nós o criamos! (Migração Transparente)
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+                try {
+                    await firebase.auth().createUserWithEmailAndPassword(fbEmail, senhaVal);
+                    // Salvar o mapeamento de Segurança no Banco de Dados para as Regras do Firestore
+                    if (firebase.auth().currentUser) {
+                        await db.collection("users").doc(firebase.auth().currentUser.uid).set({
+                            tenantId: user.tenantId,
+                            role: user.role,
+                            email: fbEmail
+                        });
+                    }
+                } catch(e) {
+                    console.error("Erro ao migrar usuário pro Auth", e);
+                    throw new Error("Falha na migração segura da conta. Contate o suporte.");
+                }
+            } else {
+                console.error("Erro Firebase Auth:", error);
+                throw new Error("Erro de autenticação na nuvem.");
+            }
+        }
+
+        // Login finalizado com sucesso
         currentUser = user;
         sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
         logarNaAplicacao(currentUser);
-        exibirToast("Acesso Master Reivindicado 👑", "Seja bem-vindo, Desenvolvedor!", "success");
-        return;
-    }
+        exibirToast("Bem-vindo! 👋", `${currentUser.name} acessou o sistema com sucesso.`, "success");
 
-    // 2. Verificar Gerentes de Tenants
-    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-    const tenant = tenants.find(t => t.ownerEmail.toLowerCase() === loginVal && t.ownerPassword === senhaVal);
-    if (tenant) {
-        user = { role: "gerente", id: "admin", name: tenant.name, tenantId: tenant.id };
-    }
-
-    // 3. Verificar Barbeiros ativos (Busca em raw database para cruzar tenants)
-    if (!user) {
-        const rawBarbers = JSON.parse(_origGetItem.call(localStorage, "barbers")) || [];
-        const barber = rawBarbers.find(b =>
-            b.active !== false &&
-            ((b.login && b.login.toLowerCase() === loginVal) || (b.email && b.email.toLowerCase() === loginVal)) &&
-            b.password === senhaVal
-        );
-        if (barber) user = { role: "barbeiro", id: barber.id, name: barber.name, tenantId: barber.tenantId };
-    }
-
-    // 4. Verificar Clientes (Busca em raw database)
-    if (!user) {
-        const rawCustomers = JSON.parse(_origGetItem.call(localStorage, "customers")) || [];
-        const customer = rawCustomers.find(c => c.email.toLowerCase() === loginVal && c.password === senhaVal);
-        if (customer) user = { role: "cliente", id: customer.id, name: customer.name, tenantId: customer.tenantId };
-    }
-
-    // Credenciais inválidas — animar e mostrar erro
-    if (!user) {
+    } catch (err) {
         const card = document.querySelector(".login-card");
-        card.style.animation = "none";
-        setTimeout(() => { card.style.animation = "shake 0.45s ease"; }, 10);
-        exibirToast("Acesso Negado ⚠️", "E-mail/login ou senha incorretos. Verifique e tente novamente.", "info");
-        return;
+        if(card) {
+            card.style.animation = "none";
+            setTimeout(() => { card.style.animation = "shake 0.45s ease"; }, 10);
+        }
+        exibirToast("Acesso Negado ⚠️", err.message || "Não foi possível fazer login.", "info");
+    } finally {
+        btn.innerHTML = originalBtnHtml;
+        btn.disabled = false;
     }
-
-    currentUser = user;
-    sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
-    logarNaAplicacao(currentUser);
-    exibirToast("Bem-vindo! 👋", `${currentUser.name} acessou o sistema com sucesso.`, "success");
 }
 
 function fazerLogout() {
     currentUser = null;
     sessionStorage.removeItem("currentSession");
+
+    // Desligar listeners do Firebase
+    if (typeof firebaseListeners !== "undefined") {
+        firebaseListeners.forEach(unsub => unsub());
+        firebaseListeners = [];
+    }
+    // Deslogar Auth
+    if (firebase.auth().currentUser) {
+        firebase.auth().signOut();
+    }
 
     // Fechar overlay de checkout caso esteja aberto
     const saasOverlay = document.getElementById("saasLockOverlay");
@@ -566,6 +717,11 @@ function logarNaAplicacao(user) {
         if (portalGerente) portalGerente.style.display = "block";
         const tabsGerente = document.querySelectorAll("#portalGerente .nav-item");
         trocarAbaGerente("abaGerenteDashboard", tabsGerente[0]);
+    }
+
+    // Iniciar escuta do Firebase Firestore
+    if (typeof iniciarEscutaFirebase === "function") {
+        iniciarEscutaFirebase();
     }
 }
 
@@ -1468,6 +1624,111 @@ function atualizarDashboard() {
             </div>
         `;
     });
+
+    if (typeof renderizarPendenciasPosVenda === "function") {
+        renderizarPendenciasPosVenda();
+    }
+}
+
+// ==========================================================================
+// TAREFAS DE PÓS-VENDA (WHATSAPP CRM)
+// ==========================================================================
+
+function renderizarPendenciasPosVenda() {
+    const list = document.getElementById("listaPendenciasPosVenda");
+    if (!list) return;
+
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+    
+    // Pegar comandas concluídas que não tiveram feedback enviado
+    const pendencias = bookings.filter(b => b.status === "concluido" && b.finalizadoEm && !b.feedbackSent);
+    
+    const agora = new Date().getTime();
+    
+    let html = "";
+    let count = 0;
+
+    pendencias.forEach(b => {
+        const finalizadoEm = new Date(b.finalizadoEm).getTime();
+        const horasPassadas = (agora - finalizadoEm) / (1000 * 60 * 60);
+
+        // Se passou mais de 1 hora
+        if (horasPassadas >= 1) {
+            count++;
+            
+            // Buscar telefone do cliente
+            const cliente = customers.find(c => c.id === b.clientId);
+            const telefone = cliente ? cliente.phone : "";
+            
+            // Qual serviço foi feito
+            const servicosRealizados = (b.servicos || []).map(s => s.nome).join(", ") || b.serviceName || "Serviço na barbearia";
+
+            html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); padding: 12px 15px; border-radius: 8px; border-left: 3px solid #25D366; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <strong style="display: block; font-size: 14px; margin-bottom: 3px;">${b.clientName || b.clienteNome || "Avulso"}</strong>
+                        <span style="font-size: 12px; color: var(--text-secondary);">
+                            <i class="fa-regular fa-clock"></i> Há ${Math.floor(horasPassadas)}h | ${servicosRealizados}
+                        </span>
+                    </div>
+                    <button class="primary-btn" style="background: #25D366; color: #fff; border: none; padding: 6px 12px; font-size: 12px;" onclick="enviarMensagemPosVenda('${b.id}', '${telefone}', '${(b.clientName || b.clienteNome || "Avulso").replace(/'/g, "\\'")}', '${servicosRealizados.replace(/'/g, "\\'")}')">
+                        <i class="fa-brands fa-whatsapp"></i> Enviar Feedback
+                    </button>
+                </div>
+            `;
+        }
+    });
+
+    if (count === 0) {
+        html = `
+            <div style="text-align: center; padding: 20px 0; color: var(--text-muted); font-size: 13px;">
+                <i class="fa-solid fa-check-double" style="font-size: 24px; display: block; margin-bottom: 10px; color: var(--glass-border);"></i>
+                Nenhuma tarefa de pós-venda pendente no momento.
+            </div>
+        `;
+    }
+
+    list.innerHTML = html;
+}
+
+function enviarMensagemPosVenda(bookingId, telefone, nomeCliente, servico) {
+    if (!telefone || telefone.trim() === "") {
+        exibirToast("Atenção", "Este cliente não possui telefone cadastrado. O feedback foi marcado como concluído.", "info");
+        // Marca como enviado pra não travar a fila
+        marcarFeedbackEnviado(bookingId);
+        return;
+    }
+
+    // Formatar telefone (remover não-números e adicionar 55)
+    let numero = telefone.replace(/\D/g, "");
+    if (!numero.startsWith("55")) {
+        numero = "55" + numero;
+    }
+
+    const nomeBarbearia = document.querySelector(".logo-text") ? document.querySelector(".logo-text").textContent : "The Golden Blade";
+
+    // Mensagem Padrão
+    const mensagem = `Olá ${nomeCliente}, aqui é da ${nomeBarbearia}! Tudo bem?\n\nVocê realizou um serviço de *${servico}* com a gente hoje.\n\nGostaríamos de saber o que achou do atendimento e do resultado! Seu feedback é muito importante para nós.`;
+    
+    const url = `https://api.whatsapp.com/send?phone=${numero}&text=${encodeURIComponent(mensagem)}`;
+
+    // Abrir no WhatsApp
+    window.open(url, "_blank");
+
+    // Marcar como feedback enviado no banco local
+    marcarFeedbackEnviado(bookingId);
+}
+
+function marcarFeedbackEnviado(bookingId) {
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const idx = bookings.findIndex(b => b.id === bookingId);
+    if (idx !== -1) {
+        bookings[idx].feedbackSent = true;
+        localStorage.setItem('bookings', JSON.stringify(bookings));
+        renderizarPendenciasPosVenda();
+        exibirToast("Sucesso! 🚀", "Ação de pós-venda registrada.", "success");
+    }
 }
 
 // ==========================================================================
@@ -3165,10 +3426,6 @@ function salvarConfiguracaoVisual() {
         }
     } catch(err) {
         console.error("salvarConfiguracaoVisual:", err);
-        exibirToast("Erro ao Salvar", "Ocorreu um erro inesperado. Veja o console.", "info");
-    }
-}
-
 function resetarConfiguracaoVisual() {
     if (!confirm("⚠️ Tem certeza que deseja restaurar o visual padrão (Dourado Clássico)?\nTodas as personalizações serão perdidas.")) return;
 
@@ -3178,12 +3435,6 @@ function resetarConfiguracaoVisual() {
 
     exibirToast("Visual Restaurado 🔄", "O tema padrão Dourado Clássico foi aplicado.", "info");
 }
-
-// Chamar ao iniciar a aplicação
-document.addEventListener("DOMContentLoaded", function() {
-    carregarConfiguracaoVisual();
-});
-
 
 // ==========================================================================
 // AGENDA TIMELINE — VISUALIZAÇÃO POR COLUNAS COM SLOTS DE 15 MINUTOS
@@ -3271,10 +3522,10 @@ function renderizarAgendaTimeline() {
 
             // Header do barbeiro
             let avatarHtml = barber.foto
-                ? `<img class="agenda-barber-avatar-sm" src="${barber.foto}" alt="${barber.nome}">`
+                ? `<img class="agenda-barber-avatar-sm" src="${barber.foto}" alt="${barber.name || barber.nome}">`
                 : `<div class="agenda-barber-avatar-icon"><i class="fa-solid fa-user"></i></div>`;
 
-            html += `<div class="agenda-barber-header">${avatarHtml}<span class="agenda-barber-name">${barber.nome.split(' ')[0]}</span></div>`;
+            html += `<div class="agenda-barber-header">${avatarHtml}<span class="agenda-barber-name">${(barber.name || barber.nome).split(' ')[0]}</span></div>`;
 
             // Linha de horário atual
             if (isToday && nowMinutes >= startMin && nowMinutes <= endMin) {
@@ -3289,7 +3540,7 @@ function renderizarAgendaTimeline() {
                 if (booking) {
                     const statusClass = booking.status === 'concluido' ? 'concluido' : 'pendente';
                     const clientName  = _getClientNameById(booking.clientId) || booking.clienteNome || 'Cliente';
-                    const serviceName = booking.servicos && booking.servicos.length > 0 ? booking.servicos[0].nome : booking.servico || '—';
+                    const serviceName = booking.servicos && booking.servicos.length > 0 ? (booking.servicos[0].name || booking.servicos[0].nome) : booking.servico || '—';
                     html += `<div class="agenda-slot ocupado${isHora ? ' hora-cheia' : ''}" data-barber="${barber.id}" data-slot="${slot}">
                                 <div class="agenda-booking-card ${statusClass}" onclick="verDetalhesComanda('${booking.id}')" title="${clientName} — ${serviceName}">
                                     <i class="fa-solid fa-circle" style="font-size:6px;"></i>
@@ -3316,7 +3567,7 @@ function _getClientNameById(id) {
     if (!id) return null;
     const customers = JSON.parse(localStorage.getItem('customers') || '[]');
     const c = customers.find(c => c.id == id);
-    return c ? c.nome : null;
+    return c ? (c.name || c.nome) : null;
 }
 
 // ==========================================================================
@@ -3346,7 +3597,7 @@ function _popularBarbeirosComanda() {
     if (!sel) return;
     const barbers = JSON.parse(localStorage.getItem('barbers') || '[]').filter(b => b.active !== false);
     sel.innerHTML = '<option value="">— Selecione —</option>' +
-        barbers.map(b => `<option value="${b.id}">${b.nome}</option>`).join('');
+        barbers.map(b => `<option value="${b.id}">${b.name || b.nome || 'Barbeiro'}</option>`).join('');
 }
 
 function abrirComanda(barberId, slot, dateStr) {
@@ -3403,7 +3654,7 @@ function onComandaBarberChange() {
     const barbers = JSON.parse(localStorage.getItem('barbers') || '[]');
     const barber  = barbers.find(b => b.id == barberSel?.value);
     _cmd.barberId   = barber ? barber.id : null;
-    _cmd.barberName = barber ? barber.nome : '';
+    _cmd.barberName = barber ? (barber.name || barber.nome) : '';
 
     // Atualizar avatar e sub do header
     const avatarEl = document.getElementById('comandaBarberAvatar');
@@ -3414,7 +3665,7 @@ function onComandaBarberChange() {
         if (subEl) {
             const horaSel = document.getElementById('comandaHorario');
             const dataInput = document.getElementById('comandaData');
-            subEl.textContent = `${barber.nome} · ${dataInput?.value || '—'} às ${horaSel?.value || '—'}`;
+            subEl.textContent = `${barber.name || barber.nome} · ${dataInput?.value || '—'} às ${horaSel?.value || '—'}`;
         }
     } else {
         if (avatarEl) avatarEl.innerHTML = '<i class="fa-solid fa-scissors"></i>';
@@ -3438,17 +3689,17 @@ function buscarClienteComanda(query) {
         const customers = JSON.parse(localStorage.getItem('customers') || '[]');
         const q = query.toLowerCase();
         const matches = customers.filter(c =>
-            (c.nome   || '').toLowerCase().includes(q) ||
-            (c.telefone || '').replace(/\D/g,'').includes(q.replace(/\D/g,''))
+            ((c.name || c.nome) || '').toLowerCase().includes(q) ||
+            ((c.phone || c.telefone) || '').replace(/\D/g,'').includes(q.replace(/\D/g,''))
         ).slice(0, 8);
 
         if (matches.length === 0) {
             resultsEl.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--text-muted);">Nenhum cliente encontrado</div>';
         } else {
             resultsEl.innerHTML = matches.map(c => `
-                <div class="comanda-cliente-result-item" onclick="selecionarClienteComanda(${c.id}, '${(c.nome||'').replace(/'/g,"\\'")}')">
-                    <strong>${c.nome || 'Sem nome'}</strong>
-                    <span>${c.telefone || ''} ${c.email ? '· '+c.email : ''}</span>
+                <div class="comanda-cliente-result-item" onclick="selecionarClienteComanda('${c.id}', '${((c.name || c.nome)||'').replace(/'/g,"\\'")}')">
+                    <strong>${(c.name || c.nome) || 'Sem nome'}</strong>
+                    <span>${(c.phone || c.telefone) || ''} ${c.email ? '· '+c.email : ''}</span>
                 </div>
             `).join('');
         }
@@ -3497,9 +3748,9 @@ function _renderizarListaServicosComanda() {
 
     listEl.innerHTML = services.map(s => `
         <div class="comanda-item-row">
-            <div class="comanda-item-nome">${s.nome}</div>
-            <div class="comanda-item-preco">R$ ${parseFloat(s.preco||0).toFixed(2).replace('.',',')}</div>
-            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('servico','${s.id}','${(s.nome||'').replace(/'/g,"\\'")}',${parseFloat(s.preco||0)})" title="Adicionar">
+            <div class="comanda-item-nome">${s.name || s.nome}</div>
+            <div class="comanda-item-preco">R$ ${parseFloat(s.price || s.preco || 0).toFixed(2).replace('.',',')}</div>
+            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('servico','${s.id}','${((s.name || s.nome)||'').replace(/'/g,"\\'")}',${parseFloat(s.price || s.preco || 0)})" title="Adicionar">
                 <i class="fa-solid fa-plus"></i>
             </button>
         </div>
@@ -3518,10 +3769,28 @@ function _renderizarListaProdutosComanda() {
 
     listEl.innerHTML = products.map(p => `
         <div class="comanda-item-row">
-            <div class="comanda-item-nome">${p.nome}</div>
-            <div class="comanda-item-preco">R$ ${parseFloat(p.preco||0).toFixed(2).replace('.',',')}</div>
-            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('produto','${p.id}','${(p.nome||'').replace(/'/g,"\\'")}',${parseFloat(p.preco||0)})" title="Adicionar">
+            <div class="comanda-item-nome">${p.name || p.nome}</div>
+            <div class="comanda-item-preco">R$ ${parseFloat(p.price || p.preco || 0).toFixed(2).replace('.',',')}</div>
+            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('produto','${p.id}','${((p.name || p.nome)||'').replace(/'/g,"\\'")}',${parseFloat(p.price || p.preco || 0)})" title="Adicionar">
                 <i class="fa-solid fa-plus"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+// Chamar ao iniciar a aplicação
+document.addEventListener("DOMContentLoaded", function() {
+    carregarConfiguracaoVisual();
+});
+
+}
+
+function navegarDiaAgenda(delta) {
+        onComandaBarberChange();
+    }
+
+    // Limpar campo de cliente
+    limparClienteComanda();
             </button>
         </div>
     `).join('');
@@ -3598,7 +3867,7 @@ function salvarAgendamentoComanda() {
     const novoAgendamento = {
         id:         'bk_' + Date.now(),
         barberId,
-        barberNome: barber ? barber.nome : '',
+        barberNome: barber ? (barber.name || barber.nome || '') : '',
         clientId:   _cmd.clientId,
         clienteNome: _cmd.clientName || 'Avulso',
         date:       data,
@@ -3655,7 +3924,7 @@ function finalizarComanda() {
         data:       data,
         hora:       hora,
         barberId,
-        barberNome: barber ? barber.nome : '',
+        barberNome: barber ? (barber.name || barber.nome || '') : '',
         clienteNome: _cmd.clientName || 'Avulso',
         itens:      _cmd.items,
         total,

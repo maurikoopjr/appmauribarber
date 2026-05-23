@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // 1. Coleção principal de usuários - Apenas os próprios usuários podem ler/escrever seus dados de segurança.
+    // Mas durante a migração, o próprio cliente pode criar o seu doc via Auth.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 2. Coleção de Inquilinos (Barbearias_dados) - A Mágica do Multitenant Seguro
+    match /barbearias_dados/{tenantId} {
+      
+      // Permitir acesso à barbearia apenas se o usuário logado tiver o mesmo tenantId registrado no seu doc
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
+
+      // Aplicar a mesma regra para as subcoleções (storage, etc)
+      match /{document=**} {
+        allow read, write: if request.auth != null && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
+      }
+    }
+    
+    // Regra especial temporária para o sistema "system" ou o desenvolvedor master, se necessário
+    match /barbearias_dados/{document=**} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "desenvolvedor";
+    }
+  }
+}
