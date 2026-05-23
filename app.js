@@ -3783,19 +3783,6 @@ document.addEventListener("DOMContentLoaded", function() {
     carregarConfiguracaoVisual();
 });
 
-}
-
-function navegarDiaAgenda(delta) {
-        onComandaBarberChange();
-    }
-
-    // Limpar campo de cliente
-    limparClienteComanda();
-            </button>
-        </div>
-    `).join('');
-}
-
 function adicionarItemComanda(tipo, id, nome, preco) {
     _cmd.items.push({ tipo, id, nome, preco: parseFloat(preco) });
     _atualizarResumoComanda();
