@@ -387,19 +387,31 @@ function fazerLogout() {
     mostrarLogin();
 }
 
-// Alternância entre painel de login e painel de cadastro
+// Alternância entre painéis de login e cadastro
 function mostrarCadastro() {
     document.getElementById("painelLogin").classList.remove("active");
+    const painelCadTenant = document.getElementById("painelCadastroTenant");
+    if (painelCadTenant) painelCadTenant.classList.remove("active");
     document.getElementById("painelCadastro").classList.add("active");
+}
+
+function mostrarCadastroTenant() {
+    document.getElementById("painelLogin").classList.remove("active");
+    const painelCad = document.getElementById("painelCadastro");
+    if (painelCad) painelCad.classList.remove("active");
+    document.getElementById("painelCadastroTenant").classList.add("active");
 }
 
 function mostrarLogin() {
     const painelCad = document.getElementById("painelCadastro");
+    const painelCadTenant = document.getElementById("painelCadastroTenant");
     const painelLog = document.getElementById("painelLogin");
     if (painelCad) painelCad.classList.remove("active");
+    if (painelCadTenant) painelCadTenant.classList.remove("active");
     if (painelLog) painelLog.classList.add("active");
+    
     // Limpar campos do formulário de cadastro
-    ["regNome","regTelefone","regEmail","regSenha","regSenhaConfirm"].forEach(id => {
+    ["regNome","regTelefone","regEmail","regSenha","regSenhaConfirm", "tenantNome", "tenantEmail", "tenantSenha", "tenantTelefone"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = "";
     });
@@ -551,15 +563,6 @@ function logarNaAplicacao(user) {
         const tabsGerente = document.querySelectorAll("#portalGerente .nav-item");
         trocarAbaGerente("abaGerenteDashboard", tabsGerente[0]);
     }
-}
-
-
-    // Exibir Login, Ocultar App
-    document.getElementById("loginOverlay").style.display = "flex";
-    document.getElementById("appMainContainer").style.display = "none";
-
-    popularListasLogin();
-}
 
 // ==========================================================================
 // ABA BARBEIRO - CONTROLES (SPA DO BARBEIRO)
