@@ -173,7 +173,8 @@ function inicializarLocalStorage() {
         { id: "plan_prata", name: "Plano VIP Silver", price: 99.90, durationDays: 30 },
         { id: "plan_gold", name: "Plano Premium Golden", price: 149.90, durationDays: 30 }
     ];
-    if (!localStorage.getItem("plans")) {
+    const existingPlans = _origGetItem.call(localStorage, "plans");
+    if (!existingPlans || existingPlans === "[]" || JSON.parse(existingPlans).length === 0) {
         _origSetItem.call(localStorage, "plans", JSON.stringify(defaultPlans));
     }
 
@@ -191,8 +192,18 @@ function inicializarLocalStorage() {
             planExpires: Date.now() + 30 * 24 * 60 * 60 * 1000
         }
     ];
-    if (!localStorage.getItem("tenants")) {
+    const existingTenants = _origGetItem.call(localStorage, "tenants");
+    if (!existingTenants || existingTenants === "[]" || JSON.parse(existingTenants).length === 0) {
         _origSetItem.call(localStorage, "tenants", JSON.stringify(defaultTenants));
+    } else {
+        // Garantir que t_default existe na lista de tenants
+        try {
+            const tenantsList = JSON.parse(existingTenants);
+            if (!tenantsList.some(t => t.id === "t_default")) {
+                tenantsList.push(defaultTenants[0]);
+                _origSetItem.call(localStorage, "tenants", JSON.stringify(tenantsList));
+            }
+        } catch(e) {}
     }
 
     // 3. Garantir seeds padrão no t_default
@@ -231,26 +242,67 @@ function inicializarLocalStorage() {
 
 // Migra usuários antigos (sem senha/login) para o novo sistema de autenticação
 function _migrarAutenticacao() {
-    const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-    let mudouB = false;
-    barbers.forEach(b => {
-        if (!b.password) { b.password = "1234"; mudouB = true; }
-        if (!b.login) {
-            b.login = b.name.split(" ")[0].toLowerCase()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z0-9]/g, "");
-            mudouB = true;
+    const keysToMigrate = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
+    keysToMigrate.forEach(key => {
+        const rawVal = _origGetItem.call(localStorage, key);
+        if (rawVal) {
+            try {
+                let data = JSON.parse(rawVal);
+                let changed = false;
+                if (Array.isArray(data)) {
+                    data = data.map(item => {
+                        if (item && typeof item === "object" && !item.tenantId) {
+                            item.tenantId = "t_default";
+                            changed = true;
+                        }
+                        return item;
+                    });
+                } else if (data && typeof data === "object") {
+                    if (!data.tenantId) {
+                        data.tenantId = "t_default";
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    _origSetItem.call(localStorage, key, JSON.stringify(data));
+                }
+            } catch(e) {
+                console.error("Migration error for key " + key + ":", e);
+            }
         }
-        if (b.active === undefined) { b.active = true; mudouB = true; }
     });
-    if (mudouB) localStorage.setItem("barbers", JSON.stringify(barbers));
 
-    const customers = JSON.parse(localStorage.getItem("customers")) || [];
-    let mudouC = false;
-    customers.forEach(c => {
-        if (!c.password) { c.password = "1234"; mudouC = true; }
-    });
-    if (mudouC) localStorage.setItem("customers", JSON.stringify(customers));
+    // Migrações adicionais de logins/senhas dos barbeiros
+    const rawBarbersVal = _origGetItem.call(localStorage, "barbers");
+    if (rawBarbersVal) {
+        try {
+            const barbers = JSON.parse(rawBarbersVal) || [];
+            let mudouB = false;
+            barbers.forEach(b => {
+                if (!b.password) { b.password = "1234"; mudouB = true; }
+                if (!b.login) {
+                    b.login = b.name.split(" ")[0].toLowerCase()
+                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                        .replace(/[^a-z0-9]/g, "");
+                    mudouB = true;
+                }
+                if (b.active === undefined) { b.active = true; mudouB = true; }
+            });
+            if (mudouB) _origSetItem.call(localStorage, "barbers", JSON.stringify(barbers));
+        } catch(e) {}
+    }
+
+    const rawCustomersVal = _origGetItem.call(localStorage, "customers");
+    if (rawCustomersVal) {
+        try {
+            const customers = JSON.parse(rawCustomersVal) || [];
+            let mudouC = false;
+            customers.forEach(c => {
+                if (!c.password) { c.password = "1234"; mudouC = true; }
+            });
+            if (mudouC) _origSetItem.call(localStorage, "customers", JSON.stringify(customers));
+        } catch(e) {}
+    }
 }
 
 // ==========================================================================
