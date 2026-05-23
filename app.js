@@ -318,6 +318,7 @@ function logarNaAplicacao(user) {
         // Resetar para Aba Agenda
         const tabsBarber = document.querySelectorAll("#portalBarbeiro .nav-item");
         trocarAbaBarbeiro("abaBarbeiroAgenda", tabsBarber[0]);
+        atualizarAvatarPainelBarbeiro();
     } else if (user.role === "gerente") {
         portalGerente.style.display = "block";
         // Resetar para Aba Dashboard
@@ -3577,4 +3578,431 @@ function aplicarIdentidadeVisual(cfg) {
         if (logoIconHeader) logoIconHeader.innerHTML = `<i class="fa-solid fa-scissors"></i>`;
         if (loginIconEl)    loginIconEl.innerHTML    = `<i class="fa-solid fa-scissors"></i>`;
     }
+}
+
+// ==========================================================================
+// RECURSOS EXTRAS: FOTO DO BARBEIRO E PLANILHAS INTERATIVAS
+// ==========================================================================
+
+function atualizarAvatarPainelBarbeiro() {
+    if (!currentUser || currentUser.role !== "barbeiro") return;
+
+    const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
+    const currentBarber = barbers.find(b => b.id == currentUser.id);
+
+    const imgEl = document.getElementById("barbeiroPainelAvatar");
+    const iconEl = document.getElementById("barbeiroPainelAvatarIcon");
+
+    if (currentBarber && (currentBarber.avatar || currentBarber.foto)) {
+        const fotoSrc = currentBarber.avatar || currentBarber.foto;
+        if (imgEl) {
+            imgEl.src = fotoSrc;
+            imgEl.style.display = "block";
+        }
+        if (iconEl) iconEl.style.display = "none";
+    } else {
+        if (imgEl) {
+            imgEl.src = "";
+            imgEl.style.display = "none";
+        }
+        if (iconEl) iconEl.style.display = "flex";
+    }
+}
+
+function uploadFotoBarbeiro(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+        exibirToast("Arquivo muito grande ⚠️", "A foto de perfil deve ter no máximo 1MB.", "info");
+        input.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64Src = e.target.result;
+
+        const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
+        const idx = barbers.findIndex(b => b.id == currentUser.id);
+
+        if (idx !== -1) {
+            // Atualizar foto no banco local
+            barbers[idx].avatar = base64Src;
+            barbers[idx].foto = base64Src;
+            localStorage.setItem("barbers", JSON.stringify(barbers));
+
+            // Atualizar sessão e UI
+            currentUser.avatar = base64Src;
+            sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+            
+            atualizarAvatarPainelBarbeiro();
+            
+            // Re-renderizar a timeline para atualizar a foto da agenda
+            if (typeof renderizarAgendaTimeline === "function") {
+                renderizarAgendaTimeline();
+            }
+
+            exibirToast("Foto Atualizada! 📸", "Sua foto de perfil foi alterada com sucesso.", "success");
+            criarAlertaSistema(`Perfil: Barbeiro "${currentUser.name}" atualizou sua foto de perfil.`);
+        }
+        input.value = "";
+    };
+    reader.readAsDataURL(file);
+}
+
+function removerFotoBarbeiro() {
+    if (!currentUser || currentUser.role !== "barbeiro") return;
+
+    if (!confirm("Deseja realmente remover sua foto de perfil?")) return;
+
+    const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
+    const idx = barbers.findIndex(b => b.id == currentUser.id);
+
+    if (idx !== -1) {
+        // Resetar para as fotos padrão se existirem ou remover
+        barbers[idx].avatar = `assets/barber_${currentUser.id}.png`;
+        barbers[idx].foto = `assets/barber_${currentUser.id}.png`;
+        localStorage.setItem("barbers", JSON.stringify(barbers));
+
+        currentUser.avatar = null;
+        sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+
+        atualizarAvatarPainelBarbeiro();
+
+        if (typeof renderizarAgendaTimeline === "function") {
+            renderizarAgendaTimeline();
+        }
+
+        exibirToast("Foto Removida 📸", "Sua foto foi redefinida para o padrão.", "info");
+        criarAlertaSistema(`Perfil: Barbeiro "${currentUser.name}" removeu sua foto de perfil.`);
+    }
+}
+
+// LÓGICA DAS PLANILHAS DETALHADAS DO DASHBOARD GERENTE
+function abrirPlanilhaDashboard(tipo) {
+    const modal = document.getElementById("modalPlanilhaFaturamento");
+    const tituloEl = document.getElementById("modalPlanilhaTitulo");
+    const descEl = document.getElementById("modalPlanilhaDesc");
+    const headEl = document.getElementById("modalPlanilhaHead");
+    const bodyEl = document.getElementById("modalPlanilhaBody");
+
+    if (!modal || !tituloEl || !headEl || !bodyEl) return;
+
+    // Obter dados locais
+    const bookings = JSON.parse(localStorage.getItem("bookings")) || [];
+    const sales = JSON.parse(localStorage.getItem("sales")) || [];
+    const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
+
+    let headHtml = "";
+    let bodyHtml = "";
+    let totalBruto = 0;
+
+    if (tipo === "faturamento") {
+        tituloEl.textContent = "Planilha de Faturamento Bruto Geral";
+        descEl.textContent = "Exibindo todas as comandas finalizadas (serviços) e vendas avulsas de produtos.";
+        
+        headHtml = `
+            <tr>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Cliente</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Profissional</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Serviço / Produto</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Tipo</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Pagamento</th>
+                <th style="padding:12px;text-align:right;border-bottom:2px solid rgba(255,255,255,0.1);">Valor</th>
+            </tr>
+        `;
+
+        // Filtrar vendas de produtos e comandas finalizadas
+        const faturamentoItens = [];
+        
+        sales.forEach(s => {
+            const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
+            
+            if (s.itens && s.itens.length > 0) {
+                // Venda via timeline
+                s.itens.forEach(item => {
+                    faturamentoItens.push({
+                        date: dataFmt,
+                        client: s.clienteNome || "Avulso",
+                        barber: s.barberNome || "—",
+                        item: item.nome,
+                        tipo: item.tipo === "servico" ? "✂️ Serviço" : "🧴 Produto",
+                        pag: s.pagamento || "—",
+                        price: parseFloat(item.preco || 0)
+                    });
+                });
+            } else {
+                // Venda mock histórica
+                faturamentoItens.push({
+                    date: dataFmt,
+                    client: s.client || "Avulso",
+                    barber: barbers.find(b => b.id == s.barberId)?.name || "—",
+                    item: s.name,
+                    tipo: s.type === "service" ? "✂️ Serviço" : "🧴 Produto",
+                    pag: s.pagamento || "Dinheiro",
+                    price: parseFloat(s.price || 0)
+                });
+            }
+        });
+
+        // Filtrar comandas da timeline que já constam como concluídas mas não estão listadas nas vendas
+        bookings.filter(b => b.status === "concluido" && !sales.some(s => s.bookingId === b.id)).forEach(b => {
+            const dataFmt = b.date ? b.date.split("-").reverse().join("/") : "—";
+            const servNome = b.servicos && b.servicos.length > 0 ? b.servicos[0].nome : b.serviceName || "Serviço";
+            faturamentoItens.push({
+                date: dataFmt,
+                client: b.clienteNome || "Avulso",
+                barber: b.barberNome || "—",
+                item: servNome,
+                tipo: "✂️ Serviço",
+                pag: b.pagamento || "—",
+                price: parseFloat(b.price || b.total || 0)
+            });
+        });
+
+        // Ordenar por data mais recente
+        faturamentoItens.sort((a,b) => b.date.localeCompare(a.date));
+
+        faturamentoItens.forEach(item => {
+            totalBruto += item.price;
+            bodyHtml += `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                    <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${item.date}</td>
+                    <td style="padding:10px 12px;font-size:13px;font-weight:600;">${item.client}</td>
+                    <td style="padding:10px 12px;font-size:13px;color:var(--text-secondary);">${item.barber}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${item.item}</td>
+                    <td style="padding:10px 12px;font-size:12px;color:var(--accent-gold);">${item.tipo}</td>
+                    <td style="padding:10px 12px;font-size:12px;text-transform:capitalize;">${item.pag}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
+                </tr>
+            `;
+        });
+
+        bodyHtml += `
+            <tr style="background:rgba(197,160,40,0.06);font-weight:700;border-top:2px solid rgba(255,255,255,0.1);">
+                <td colspan="6" style="padding:12px;font-size:14px;color:var(--accent-gold);">TOTAL DE FATURAMENTO</td>
+                <td style="padding:12px;font-size:14px;text-align:right;color:var(--accent-gold);">R$ ${totalBruto.toFixed(2).replace('.', ',')}</td>
+            </tr>
+        `;
+
+    } else if (tipo === "lucro") {
+        tituloEl.textContent = "Planilha de Lucratividade Líquida da Barbearia";
+        descEl.textContent = "Faturamento Bruto deduzido das comissões operacionais pagas aos barbeiros.";
+
+        headHtml = `
+            <tr>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Profissional</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Item / Serviço</th>
+                <th style="padding:12px;text-align:right;border-bottom:2px solid rgba(255,255,255,0.1);">Faturamento</th>
+                <th style="padding:12px;text-align:center;border-bottom:2px solid rgba(255,255,255,0.1);">Comissão (%)</th>
+                <th style="padding:12px;text-align:right;border-bottom:2px solid rgba(255,255,255,0.1);">Repasse Pago</th>
+                <th style="padding:12px;text-align:right;border-bottom:2px solid rgba(255,255,255,0.1);">Lucro Líquido</th>
+            </tr>
+        `;
+
+        let totalComissao = 0;
+        let totalLucro = 0;
+
+        sales.forEach(s => {
+            const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
+            const barber = barbers.find(b => b.id == s.barberId) || { name: "Avulso", commission: 0 };
+            const commPct = barber.commission || 50;
+
+            if (s.itens && s.itens.length > 0) {
+                s.itens.forEach(item => {
+                    const price = parseFloat(item.preco || 0);
+                    // Comissões pagas apenas em serviços (produtos possuem regras de repasse diferentes, calculamos proporcional)
+                    const isServ = item.tipo === "servico";
+                    const commPaid = isServ ? (price * (commPct / 100)) : 0;
+                    const profit = price - commPaid;
+
+                    totalBruto += price;
+                    totalComissao += commPaid;
+                    totalLucro += profit;
+
+                    bodyHtml += `
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                            <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
+                            <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
+                            <td style="padding:10px 12px;font-size:13px;">${item.nome} ${!isServ ? '<small style="color:var(--text-muted);">(Produto)</small>':''}</td>
+                            <td style="padding:10px 12px;font-size:13px;text-align:right;">R$ ${price.toFixed(2).replace('.', ',')}</td>
+                            <td style="padding:10px 12px;font-size:13px;text-align:center;color:var(--text-muted);">${isServ ? commPct + '%' : '0%'}</td>
+                            <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
+                            <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-emerald);font-weight:600;">R$ ${profit.toFixed(2).replace('.', ',')}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                const price = parseFloat(s.price || 0);
+                const isServ = s.type === "service";
+                const commPaid = isServ ? (price * (commPct / 100)) : 0;
+                const profit = price - commPaid;
+
+                totalBruto += price;
+                totalComissao += commPaid;
+                totalLucro += profit;
+
+                bodyHtml += `
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                        <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
+                        <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
+                        <td style="padding:10px 12px;font-size:13px;">${s.name} ${!isServ ? '<small style="color:var(--text-muted);">(Produto)</small>':''}</td>
+                        <td style="padding:10px 12px;font-size:13px;text-align:right;">R$ ${price.toFixed(2).replace('.', ',')}</td>
+                        <td style="padding:10px 12px;font-size:13px;text-align:center;color:var(--text-muted);">${isServ ? commPct + '%' : '0%'}</td>
+                        <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
+                        <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-emerald);font-weight:600;">R$ ${profit.toFixed(2).replace('.', ',')}</td>
+                    </tr>
+                `;
+            }
+        });
+
+        bodyHtml += `
+            <tr style="background:rgba(255,255,255,0.02);font-weight:700;border-top:2px solid rgba(255,255,255,0.1);">
+                <td colspan="3" style="padding:12px;font-size:13px;color:var(--text-muted);">SOMAS DE COLUNA</td>
+                <td style="padding:12px;font-size:13px;text-align:right;">R$ ${totalBruto.toFixed(2).replace('.', ',')}</td>
+                <td style="padding:12px;font-size:13px;text-align:center;">—</td>
+                <td style="padding:12px;font-size:13px;text-align:right;color:var(--accent-danger);">R$ ${totalComissao.toFixed(2).replace('.', ',')}</td>
+                <td style="padding:12px;font-size:13px;text-align:right;color:var(--accent-emerald);">R$ ${totalLucro.toFixed(2).replace('.', ',')}</td>
+            </tr>
+            <tr style="background:rgba(16,185,129,0.06);font-weight:800;">
+                <td colspan="6" style="padding:12px;font-size:14px;color:var(--accent-emerald);">LUCRO LÍQUIDO CONSOLIDADO</td>
+                <td style="padding:12px;font-size:14px;text-align:right;color:var(--accent-emerald);">R$ ${totalLucro.toFixed(2).replace('.', ',')}</td>
+            </tr>
+        `;
+
+    } else if (tipo === "atendimentos") {
+        tituloEl.textContent = "Planilha de Agendamentos e Atendimentos";
+        descEl.textContent = "Lista detalhada de agendamentos (Timeline) ativos e efetuados.";
+
+        headHtml = `
+            <tr>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Horário</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Cliente</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Profissional</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Serviço</th>
+                <th style="padding:12px;text-align:center;border-bottom:2px solid rgba(255,255,255,0.1);">Status</th>
+                <th style="padding:12px;text-align:right;border-bottom:2px solid rgba(255,255,255,0.1);">Valor</th>
+            </tr>
+        `;
+
+        bookings.forEach(b => {
+            const dataFmt = b.date ? b.date.split("-").reverse().join("/") : "—";
+            const servNome = b.servicos && b.servicos.length > 0 ? b.servicos[0].nome : b.serviceName || "Serviço";
+            const price = parseFloat(b.price || b.total || 0);
+            totalBruto += price;
+
+            const statusLabel = b.status === "concluido" ? "Concluído" : "Agendado";
+            const statusColor = b.status === "concluido" ? "var(--accent-emerald)" : "var(--accent-gold)";
+
+            bodyHtml += `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                    <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${b.time || "—"}</td>
+                    <td style="padding:10px 12px;font-size:13px;font-weight:600;">${b.clienteNome || "Avulso"}</td>
+                    <td style="padding:10px 12px;font-size:13px;color:var(--text-secondary);">${b.barberName || "—"}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${servNome}</td>
+                    <td style="padding:10px 12px;font-size:12px;text-align:center;font-weight:700;color:${statusColor};">${statusLabel}</td>
+                    <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;">R$ ${price.toFixed(2).replace('.', ',')}</td>
+                </tr>
+            `;
+        });
+
+        bodyHtml += `
+            <tr style="background:rgba(197,160,40,0.06);font-weight:700;border-top:2px solid rgba(255,255,255,0.1);">
+                <td colspan="6" style="padding:12px;font-size:14px;color:var(--accent-gold);">VALOR TOTAL EM ATENDIMENTOS</td>
+                <td style="padding:12px;font-size:14px;text-align:right;color:var(--accent-gold);">R$ ${totalBruto.toFixed(2).replace('.', ',')}</td>
+            </tr>
+        `;
+
+    } else if (tipo === "comissoes") {
+        tituloEl.textContent = "Planilha de Comissões e Repasses aos Barbeiros";
+        descEl.textContent = "Auditoria de todas as taxas e valores repassados aos profissionais por serviço prestado.";
+
+        headHtml = `
+            <tr>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Profissional</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Cliente</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Item / Serviço</th>
+                <th style="padding:12px;text-align:right;border-bottom:2px solid rgba(255,255,255,0.1);">Faturamento</th>
+                <th style="padding:12px;text-align:center;border-bottom:2px solid rgba(255,255,255,0.1);">Taxa (%)</th>
+                <th style="padding:12px;text-align:right;border-bottom:2px solid rgba(255,255,255,0.1);">Comissão Paga</th>
+            </tr>
+        `;
+
+        let totalComissoesPagas = 0;
+
+        sales.forEach(s => {
+            const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
+            const barber = barbers.find(b => b.id == s.barberId) || { name: "Avulso", commission: 50 };
+            const commPct = barber.commission || 50;
+
+            if (s.itens && s.itens.length > 0) {
+                s.itens.forEach(item => {
+                    const price = parseFloat(item.preco || 0);
+                    const isServ = item.tipo === "servico";
+                    const commPaid = isServ ? (price * (commPct / 100)) : 0;
+
+                    if (commPaid > 0) {
+                        totalBruto += price;
+                        totalComissoesPagas += commPaid;
+
+                        bodyHtml += `
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                                <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
+                                <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
+                                <td style="padding:10px 12px;font-size:13px;">${s.clienteNome || "Avulso"}</td>
+                                <td style="padding:10px 12px;font-size:13px;">${item.nome}</td>
+                                <td style="padding:10px 12px;font-size:13px;text-align:right;">R$ ${price.toFixed(2).replace('.', ',')}</td>
+                                <td style="padding:10px 12px;font-size:13px;text-align:center;">${commPct}%</td>
+                                <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
+                            </tr>
+                        `;
+                    }
+                });
+            } else {
+                const price = parseFloat(s.price || 0);
+                const isServ = s.type === "service";
+                const commPaid = isServ ? (price * (commPct / 100)) : 0;
+
+                if (commPaid > 0) {
+                    totalBruto += price;
+                    totalComissoesPagas += commPaid;
+
+                    bodyHtml += `
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                            <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
+                            <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
+                            <td style="padding:10px 12px;font-size:13px;">${s.client || "Avulso"}</td>
+                            <td style="padding:10px 12px;font-size:13px;">${s.name}</td>
+                            <td style="padding:10px 12px;font-size:13px;text-align:right;">R$ ${price.toFixed(2).replace('.', ',')}</td>
+                            <td style="padding:10px 12px;font-size:13px;text-align:center;">${commPct}%</td>
+                            <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
+                        </tr>
+                    `;
+                }
+            }
+        });
+
+        bodyHtml += `
+            <tr style="background:rgba(239,68,68,0.06);font-weight:800;border-top:2px solid rgba(255,255,255,0.1);">
+                <td colspan="6" style="padding:12px;font-size:14px;color:var(--accent-danger);">TOTAL DE COMISSÕES A REPASSAR</td>
+                <td style="padding:12px;font-size:14px;text-align:right;color:var(--accent-danger);">R$ ${totalComissoesPagas.toFixed(2).replace('.', ',')}</td>
+            </tr>
+        `;
+    }
+
+    // Atualizar HTML e abrir modal
+    headEl.innerHTML = headHtml;
+    bodyEl.innerHTML = bodyHtml;
+    modal.classList.add("active");
+}
+
+function fecharModalPlanilha() {
+    const modal = document.getElementById("modalPlanilhaFaturamento");
+    if (modal) modal.classList.remove("active");
 }

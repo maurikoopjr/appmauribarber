@@ -377,6 +377,33 @@
                         <div class="stat-card-icon"><i class="fa-solid fa-scissors"></i></div>
                     </div>
                 </div>
+
+                <!-- Configuração de Foto de Perfil do Barbeiro -->
+                <div class="config-section-card" style="margin-top: 30px; background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.05); padding: 24px; border-radius: var(--border-radius-sm);">
+                    <div class="config-section-header" style="display:flex; gap:14px; align-items:center; margin-bottom: 20px;">
+                        <i class="fa-solid fa-user-gear" style="color:var(--accent-gold); font-size:24px;"></i>
+                        <div>
+                            <h3 class="config-section-title" style="margin:0; font-size:16px;">Minha Foto de Perfil</h3>
+                            <p class="config-section-desc" style="margin:4px 0 0 0; font-size:12px; color:var(--text-muted);">Altere sua foto de avatar exibida para os clientes no agendamento e no painel geral.</p>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+                        <div class="logo-preview-container" style="width: 80px; height: 80px; position:relative; border-radius:50%; border:2px solid var(--accent-gold); overflow:hidden;">
+                            <img id="barbeiroPainelAvatar" src="" alt="Sua Foto" style="display:none; width:100%; height:100%; object-fit:cover;">
+                            <div id="barbeiroPainelAvatarIcon" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--bg-tertiary); font-size:28px; color:var(--accent-gold);"><i class="fa-solid fa-user"></i></div>
+                        </div>
+                        <div>
+                            <div style="display:flex; gap:10px;">
+                                <label class="primary-btn" for="barbeiroFotoInput" style="cursor:pointer; display:inline-block; font-size:13px; padding: 10px 18px;">
+                                    <i class="fa-solid fa-upload"></i> Escolher Imagem
+                                </label>
+                                <input type="file" id="barbeiroFotoInput" accept="image/*" style="display:none" onchange="uploadFotoBarbeiro(this)">
+                                <button class="danger-btn" onclick="removerFotoBarbeiro()" style="font-size:13px; padding: 10px 18px;"><i class="fa-solid fa-trash-alt"></i> Remover</button>
+                            </div>
+                            <p style="font-size:11px; color:var(--text-muted); margin-top:8px; margin-bottom:0;"><i class="fa-solid fa-circle-info"></i> Formatos aceitos: PNG ou JPG. Recomendado: 256x256px. Limite: 1MB.</p>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- ABA BARBEIRO: CLIENTES (RESTRIÇÃO DE DADOS) -->
@@ -453,25 +480,25 @@
                 <h2 class="section-title">Dashboard e Lucratividade</h2>
                 
                 <div class="admin-stats-grid">
-                    <div class="stat-card gold-border">
+                    <div class="stat-card gold-border" onclick="abrirPlanilhaDashboard('faturamento')" style="cursor:pointer;" title="Clique para ver a planilha de faturamento">
                         <h3 class="stat-card-title">Faturamento Bruto Total</h3>
                         <div class="stat-card-value" id="dashboardFaturamentoTotal">R$ 0,00</div>
                         <div class="stat-card-trend up"><i class="fa-solid fa-circle-up"></i> Faturamento Geral</div>
                         <div class="stat-card-icon"><i class="fa-solid fa-coins"></i></div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="abrirPlanilhaDashboard('lucro')" style="cursor:pointer;" title="Clique para ver a planilha de lucro líquido">
                         <h3 class="stat-card-title">Lucro Líquido Barbearia</h3>
                         <div class="stat-card-value" id="dashboardLucroLiquido" style="color: var(--accent-emerald);">R$ 0,00</div>
                         <div class="stat-card-trend">Descontadas as comissões pagas</div>
                         <div class="stat-card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="abrirPlanilhaDashboard('atendimentos')" style="cursor:pointer;" title="Clique para ver a planilha de atendimentos">
                         <h3 class="stat-card-title">Atendimentos Concluídos</h3>
                         <div class="stat-card-value" id="dashboardTotalTrabalhos">0</div>
                         <div class="stat-card-trend"><span style="color:var(--text-secondary);">Agendamentos ativos</span></div>
                         <div class="stat-card-icon"><i class="fa-solid fa-chair"></i></div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="abrirPlanilhaDashboard('comissoes')" style="cursor:pointer;" title="Clique para ver a planilha de comissões">
                         <h3 class="stat-card-title">Comissões Totais Pagas</h3>
                         <div class="stat-card-value" id="dashboardComissoesPagas" style="color: var(--accent-danger);">R$ 0,00</div>
                         <div class="stat-card-trend">Repasse aos profissionais</div>
@@ -1146,6 +1173,39 @@
                     </div>
 
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: PLANILHA DE FATURAMENTO / GANHOS -->
+    <div class="modal-overlay" id="modalPlanilhaFaturamento" style="z-index: 16000;">
+        <div class="modal-card" style="max-width: 900px; width:95%; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header" style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="width:40px; height:40px; border-radius:50%; background:var(--accent-gold-glow); display:flex; align-items:center; justify-content:center; color:var(--accent-gold); font-size:18px;">
+                        <i class="fa-solid fa-table"></i>
+                    </div>
+                    <div>
+                        <h3 id="modalPlanilhaTitulo" style="margin:0; font-size:16px;">Planilha de Detalhes</h3>
+                        <span id="modalPlanilhaDesc" style="font-size:12px; color:var(--text-muted);">Métricas auditadas em tempo real</span>
+                    </div>
+                </div>
+                <button class="icon-btn" onclick="fecharModalPlanilha()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 20px; overflow-y: auto; flex: 1;">
+                <div class="customer-table-container" style="border: 1px solid rgba(255,255,255,0.05); border-radius: var(--border-radius-sm); overflow-x: auto;">
+                    <table class="customer-table" style="width: 100%; border-collapse: collapse;">
+                        <thead id="modalPlanilhaHead">
+                            <!-- Preenchido dinamicamente -->
+                        </thead>
+                        <tbody id="modalPlanilhaBody">
+                            <!-- Preenchido dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; background: var(--bg-secondary);">
+                <button class="primary-btn" onclick="fecharModalPlanilha()" style="padding: 10px 24px; font-size:13px;">Fechar Planilha</button>
             </div>
         </div>
     </div>
