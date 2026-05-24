@@ -9,13 +9,13 @@ let currentUser = null; // Guardará o perfil e dados do usuário logado
 // ==========================================================================
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDieJPR5zEgBzK9Y_LzFUZQBwsVZKKJIsM",
-    authDomain: "teste-app-mauri-barber.firebaseapp.com",
-    projectId: "teste-app-mauri-barber",
-    storageBucket: "teste-app-mauri-barber.firebasestorage.app",
-    messagingSenderId: "295258163520",
-    appId: "1:295258163520:web:0b8d914217ba5cd5a312a5",
-    measurementId: "G-YED9V5N1DP"
+  apiKey: "AIzaSyDieJPR5zEgBzK9Y_LzFUZQBwsVZKKJIsM",
+  authDomain: "teste-app-mauri-barber.firebaseapp.com",
+  projectId: "teste-app-mauri-barber",
+  storageBucket: "teste-app-mauri-barber.firebasestorage.app",
+  messagingSenderId: "295258163520",
+  appId: "1:295258163520:web:0b8d914217ba5cd5a312a5",
+  measurementId: "G-YED9V5N1DP"
 };
 
 // Initialize Firebase
@@ -41,12 +41,12 @@ function getActiveTenantId() {
         try {
             const u = JSON.parse(session);
             if (u && u.tenantId) return u.tenantId;
-        } catch (e) { }
+        } catch(e) {}
     }
     return "t_default";
 }
 
-Storage.prototype.getItem = function (key) {
+Storage.prototype.getItem = function(key) {
     const val = _origGetItem.call(this, key);
     if (!val) return val;
 
@@ -67,12 +67,12 @@ Storage.prototype.getItem = function (key) {
                 return null;
             }
         }
-    } catch (e) { }
+    } catch(e) {}
 
     return val;
 };
 
-Storage.prototype.setItem = function (key, value) {
+Storage.prototype.setItem = function(key, value) {
     const multitenantKeys = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
     if (!multitenantKeys.includes(key)) {
         return _origSetItem.call(this, key, value);
@@ -84,15 +84,15 @@ Storage.prototype.setItem = function (key, value) {
         if (Array.isArray(newData)) {
             const rawVal = _origGetItem.call(this, key);
             const allRaw = rawVal ? JSON.parse(rawVal) : [];
-            const otherTenantsData = Array.isArray(allRaw)
-                ? allRaw.filter(item => item.tenantId !== tenantId)
+            const otherTenantsData = Array.isArray(allRaw) 
+                ? allRaw.filter(item => item.tenantId !== tenantId) 
                 : [];
-
+                
             const updatedNewData = newData.map(item => {
                 if (!item.tenantId) item.tenantId = tenantId;
                 return item;
             });
-
+            
             const merged = [...otherTenantsData, ...updatedNewData];
             const strVal = JSON.stringify(merged);
             _origSetItem.call(this, key, strVal);
@@ -105,7 +105,7 @@ Storage.prototype.setItem = function (key, value) {
             sincronizarComFirebase(key, tenantId, newData);
             return;
         }
-    } catch (e) { }
+    } catch(e) {}
 
     const ret = _origSetItem.call(this, key, value);
     sincronizarComFirebase(key, getActiveTenantId(), value);
@@ -119,20 +119,20 @@ let firebaseListeners = [];
 
 function sincronizarComFirebase(key, tenantId, data) {
     if (!tenantId || tenantId === "t_default") return;
-
+    
     // Evita upload se o desenvolvedor está acessando a master db
     if (currentUser && currentUser.role === "desenvolvedor") return;
 
     // Converte para string para salvar genérico no Firestore
     const dataStr = typeof data === "string" ? data : JSON.stringify(data);
-
+    
     // Salva na coleção do Inquilino
     db.collection('barbearias_dados')
-        .doc(tenantId)
-        .collection('storage')
-        .doc(key)
-        .set({ payload: dataStr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
-        .catch(e => console.error("Erro ao sincronizar " + key, e));
+      .doc(tenantId)
+      .collection('storage')
+      .doc(key)
+      .set({ payload: dataStr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+      .catch(e => console.error("Erro ao sincronizar " + key, e));
 }
 
 function iniciarEscutaFirebase() {
@@ -147,41 +147,41 @@ function iniciarEscutaFirebase() {
 
     multitenantKeys.forEach(key => {
         const unsub = db.collection('barbearias_dados')
-            .doc(tenantId)
-            .collection('storage')
-            .doc(key)
-            .onSnapshot(doc => {
-                if (doc.exists) {
-                    const dataStr = doc.data().payload;
-
-                    // Atualizar localStorage local silenciosamente
-                    const rawVal = _origGetItem.call(localStorage, key);
-                    let currentRaw = [];
-                    try { currentRaw = JSON.parse(rawVal) || []; } catch (e) { }
-
-                    try {
-                        const incomingData = JSON.parse(dataStr);
-                        // Mesclar com os dados dos outros tenants se for array
-                        if (Array.isArray(currentRaw) && Array.isArray(incomingData)) {
-                            const otherTenants = currentRaw.filter(i => i.tenantId !== tenantId);
-                            _origSetItem.call(localStorage, key, JSON.stringify([...otherTenants, ...incomingData]));
-                        } else {
-                            // Se for object
-                            _origSetItem.call(localStorage, key, dataStr);
-                        }
-
-                        // Forçar atualização da UI baseada na role atual (se estiver logado)
-                        if (currentUser && currentUser.role === "gerente") {
-                            if (document.getElementById("abaGerenteDashboard").classList.contains("active")) atualizarDashboard();
-                            if (document.getElementById("abaGerenteAgenda").classList.contains("active")) renderizarAgendaTimeline();
-                        } else if (currentUser && currentUser.role === "barbeiro") {
-                            if (document.getElementById("abaBarbeiroAgenda").classList.contains("active")) renderizarAgendaBarbeiro();
-                        }
-                    } catch (e) {
-                        _origSetItem.call(localStorage, key, dataStr);
-                    }
-                }
-            });
+          .doc(tenantId)
+          .collection('storage')
+          .doc(key)
+          .onSnapshot(doc => {
+              if (doc.exists) {
+                  const dataStr = doc.data().payload;
+                  
+                  // Atualizar localStorage local silenciosamente
+                  const rawVal = _origGetItem.call(localStorage, key);
+                  let currentRaw = [];
+                  try { currentRaw = JSON.parse(rawVal) || []; } catch(e){}
+                  
+                  try {
+                      const incomingData = JSON.parse(dataStr);
+                      // Mesclar com os dados dos outros tenants se for array
+                      if (Array.isArray(currentRaw) && Array.isArray(incomingData)) {
+                          const otherTenants = currentRaw.filter(i => i.tenantId !== tenantId);
+                          _origSetItem.call(localStorage, key, JSON.stringify([...otherTenants, ...incomingData]));
+                      } else {
+                          // Se for object
+                          _origSetItem.call(localStorage, key, dataStr);
+                      }
+                      
+                      // Forçar atualização da UI baseada na role atual (se estiver logado)
+                      if (currentUser && currentUser.role === "gerente") {
+                          if (document.getElementById("abaGerenteDashboard").classList.contains("active")) atualizarDashboard();
+                          if (document.getElementById("abaGerenteAgenda").classList.contains("active")) renderizarAgendaTimeline();
+                      } else if (currentUser && currentUser.role === "barbeiro") {
+                          if (document.getElementById("abaBarbeiroAgenda").classList.contains("active")) renderizarAgendaBarbeiro();
+                      }
+                  } catch (e) {
+                      _origSetItem.call(localStorage, key, dataStr);
+                  }
+              }
+          });
         firebaseListeners.push(unsub);
     });
 }
@@ -239,7 +239,7 @@ const HISTORICAL_SALES_MOCK = [
     { id: "h3", barberId: 1, type: "product", name: "Pomada Modeladora Matte", price: 45.00, date: "2026-05-19", clientId: "c2", client: "Roberto Silva" },
     { id: "h4", barberId: 1, type: "service", name: "Corte Clássico", price: 50.00, date: "2026-05-19", clientId: "c1", client: "Maurício Koop Junior" },
     { id: "h5", barberId: 1, type: "service", name: "Barba de Toalha Quente", price: 40.00, date: "2026-05-20", clientId: "c4", client: "Daniel Alves" },
-
+    
     // Lucas Fade (Barber 2)
     { id: "h7", barberId: 2, type: "service", name: "Corte Clássico", price: 50.00, date: "2026-05-17", clientId: "c3", client: "Victor Hugo" },
     { id: "h8", barberId: 2, type: "service", name: "Combo Golden Blade", price: 80.00, date: "2026-05-18", clientId: "c3", client: "Victor Hugo" },
@@ -257,9 +257,9 @@ const HISTORICAL_SALES_MOCK = [
 // INICIALIZAÇÃO DE PÁGINA E LOCAL STORAGE
 // ==========================================================================
 
-window.onload = function () {
+window.onload = function() {
     inicializarLocalStorage();
-
+    
     // Verificar se existe sessão salva
     const sessaoSalva = sessionStorage.getItem("currentSession");
     if (sessaoSalva) {
@@ -307,7 +307,7 @@ function inicializarLocalStorage() {
                 tenantsList.push(defaultTenants[0]);
                 _origSetItem.call(localStorage, "tenants", JSON.stringify(tenantsList));
             }
-        } catch (e) { }
+        } catch(e) {}
     }
 
     // 3. Garantir seeds padrão no t_default
@@ -315,22 +315,22 @@ function inicializarLocalStorage() {
     sessionStorage.setItem("currentSession", JSON.stringify(sessionMock));
 
     if (!localStorage.getItem("customers")) {
-        localStorage.setItem("customers", JSON.stringify(DEFAULT_CUSTOMERS.map(c => ({ ...c, tenantId: "t_default" }))));
+        localStorage.setItem("customers", JSON.stringify(DEFAULT_CUSTOMERS.map(c => ({...c, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("barbers")) {
-        localStorage.setItem("barbers", JSON.stringify(DEFAULT_BARBERS.map(b => ({ ...b, tenantId: "t_default" }))));
+        localStorage.setItem("barbers", JSON.stringify(DEFAULT_BARBERS.map(b => ({...b, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("services")) {
-        localStorage.setItem("services", JSON.stringify(DEFAULT_SERVICES.map(s => ({ ...s, tenantId: "t_default" }))));
+        localStorage.setItem("services", JSON.stringify(DEFAULT_SERVICES.map(s => ({...s, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("products")) {
-        localStorage.setItem("products", JSON.stringify(DEFAULT_PRODUCTS.map(p => ({ ...p, tenantId: "t_default" }))));
+        localStorage.setItem("products", JSON.stringify(DEFAULT_PRODUCTS.map(p => ({...p, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("bookings")) {
         localStorage.setItem("bookings", JSON.stringify([]));
     }
     if (!localStorage.getItem("sales")) {
-        localStorage.setItem("sales", JSON.stringify(HISTORICAL_SALES_MOCK.map(s => ({ ...s, tenantId: "t_default" }))));
+        localStorage.setItem("sales", JSON.stringify(HISTORICAL_SALES_MOCK.map(s => ({...s, tenantId: "t_default"}))));
     }
     if (!localStorage.getItem("notifications")) {
         localStorage.setItem("notifications", JSON.stringify([
@@ -370,7 +370,7 @@ function _migrarAutenticacao() {
                 if (changed) {
                     _origSetItem.call(localStorage, key, JSON.stringify(data));
                 }
-            } catch (e) {
+            } catch(e) {
                 console.error("Migration error for key " + key + ":", e);
             }
         }
@@ -393,7 +393,7 @@ function _migrarAutenticacao() {
                 if (b.active === undefined) { b.active = true; mudouB = true; }
             });
             if (mudouB) _origSetItem.call(localStorage, "barbers", JSON.stringify(barbers));
-        } catch (e) { }
+        } catch(e) {}
     }
 
     const rawCustomersVal = _origGetItem.call(localStorage, "customers");
@@ -405,7 +405,7 @@ function _migrarAutenticacao() {
                 if (!c.password) { c.password = "1234"; mudouC = true; }
             });
             if (mudouC) _origSetItem.call(localStorage, "customers", JSON.stringify(customers));
-        } catch (e) { }
+        } catch(e) {}
     }
 }
 
@@ -466,7 +466,7 @@ async function fazerLogin(event) {
 
         // 5. INTEGRAÇÃO FIREBASE AUTH (O Coração da Segurança)
         let fbEmail = user.email || `${loginVal}@thegoldenblade.com`;
-
+        
         try {
             await firebase.auth().signInWithEmailAndPassword(fbEmail, senhaVal);
         } catch (error) {
@@ -482,7 +482,7 @@ async function fazerLogin(event) {
                             email: fbEmail
                         });
                     }
-                } catch (e) {
+                } catch(e) {
                     console.error("Erro ao migrar usuário pro Auth", e);
                     throw new Error("Falha na migração segura da conta. Contate o suporte.");
                 }
@@ -500,7 +500,7 @@ async function fazerLogin(event) {
 
     } catch (err) {
         const card = document.querySelector(".login-card");
-        if (card) {
+        if(card) {
             card.style.animation = "none";
             setTimeout(() => { card.style.animation = "shake 0.45s ease"; }, 10);
         }
@@ -565,9 +565,9 @@ function mostrarLogin() {
     if (painelCad) painelCad.classList.remove("active");
     if (painelCadTenant) painelCadTenant.classList.remove("active");
     if (painelLog) painelLog.classList.add("active");
-
+    
     // Limpar campos do formulário de cadastro
-    ["regNome", "regTelefone", "regEmail", "regSenha", "regSenhaConfirm", "tenantNome", "tenantEmail", "tenantSenha", "tenantTelefone"].forEach(id => {
+    ["regNome","regTelefone","regEmail","regSenha","regSenhaConfirm", "tenantNome", "tenantEmail", "tenantSenha", "tenantTelefone"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = "";
     });
@@ -669,7 +669,7 @@ function logarNaAplicacao(user) {
     // VERIFICAR STATUS DA ASSINATURA DO INQUILINO (TENANT)
     const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
     const tenant = tenants.find(t => t.id === user.tenantId);
-
+    
     if (tenant) {
         // Verificar se expirou por tempo
         const expTime = tenant.status === "trial" ? tenant.trialExpires : tenant.planExpires;
@@ -775,7 +775,7 @@ function atualizarFidelidadeCliente() {
     const pctText = document.getElementById("fidelityPercentText");
 
     pctText.textContent = `${pct.toFixed(0)}%`;
-
+    
     // Delay para animação fluida do CSS
     setTimeout(() => {
         fill.style.width = `${pct}%`;
@@ -986,7 +986,7 @@ function renderizarDatasAgendamento() {
         const dataFutura = new Date(hoje);
         dataFutura.setDate(hoje.getDate() + i);
 
-        if (dataFutura.getDay() === 0) continue;
+        if (dataFutura.getDay() === 0) continue; 
 
         const diaSemanaStr = diasSemana[dataFutura.getDay()];
         const diaNum = dataFutura.getDate();
@@ -1030,10 +1030,10 @@ function renderizarHorariosAgendamento() {
 
     slots.forEach(slot => {
         // PREVENÇÃO DE CONFLITO: Verifica se o barbeiro já tem compromisso confirmado nesse dia e hora
-        const isConflict = bookings.some(b =>
-            b.barberId === tempBooking.barberId &&
-            b.date === tempBooking.date &&
-            b.time === slot &&
+        const isConflict = bookings.some(b => 
+            b.barberId === tempBooking.barberId && 
+            b.date === tempBooking.date && 
+            b.time === slot && 
             b.status === "confirmed"
         );
 
@@ -1153,7 +1153,7 @@ function confirmarAgendamento() {
 
     // Disparar Notificação Real-Time
     exibirToast("Agendado com Sucesso! 🎉", `Seu corte com ${selectedBarber.name} está marcado para ${dataFormatada} às ${tempBooking.time}.`, "success");
-
+    
     // Alerta simulado para o barbeiro da cadeira
     setTimeout(() => {
         exibirToast(`Aviso para ${selectedBarber.name} 💈`, `Novo agendamento recebido! Cliente '${currentUser.name}' marcou '${selectedService.name}' para às ${tempBooking.time}.`, "info");
@@ -1221,7 +1221,7 @@ function cancelarAgendamento(bookingId) {
     const dataFormatada = `${partesData[2]}/${partesData[1]}`;
 
     exibirToast("Agendamento Cancelado", `Seu horário com ${item.barberName} foi desmarcado.`, "info");
-
+    
     setTimeout(() => {
         exibirToast(`Aviso para ${item.barberName} ⚠️`, `O agendamento de '${item.serviceName}' para ${dataFormatada} às ${item.time} foi CANCELADO pelo cliente.`, "info");
     }, 1200);
@@ -1296,15 +1296,15 @@ function atualizarFinanceiroBarbeiro() {
     const totalServicos = servConfirmados + servHistoricos;
 
     const totalProdutos = sales.filter(s => s.type === "product" && s.barberId === currentUser.id).reduce((sum, s) => sum + s.price, 0);
-
+    
     // Faturamento bruto individual
     const faturamentoBruto = totalServicos + totalProdutos;
 
     // Ganhos líquidos baseados no percentual definido pelo gerente!
     const meusGanhosComissao = faturamentoBruto * (minhaTaxa / 100);
 
-    const totalTrabalhos = bookings.filter(b => b.status === "confirmed" && b.barberId === currentUser.id).length +
-        sales.filter(s => s.type === "service" && s.barberId === currentUser.id).length;
+    const totalTrabalhos = bookings.filter(b => b.status === "confirmed" && b.barberId === currentUser.id).length + 
+                           sales.filter(s => s.type === "service" && s.barberId === currentUser.id).length;
 
     // Atualizar HTML
     document.getElementById("barbeiroFatBruto").textContent = `R$ ${faturamentoBruto.toFixed(2).replace('.', ',')}`;
@@ -1319,7 +1319,7 @@ function renderizarAlertasBarbeiro() {
     list.innerHTML = "";
 
     const notifications = JSON.parse(localStorage.getItem("notifications")) || [];
-
+    
     // ISOLAMENTO: Filtrar apenas notificações direcionadas ao barbeiro logado
     const meusAlertas = notifications.filter(n => n.text.includes(currentUser.name));
 
@@ -1357,7 +1357,7 @@ function renderizarAlertasBarbeiro() {
 
 function renderizarClientes() {
     const customers = JSON.parse(localStorage.getItem("customers")) || [];
-
+    
     // 1. Tabela do Barbeiro (Com privacidade de contatos e sem exclusão)
     const barbeiroTableBody = document.getElementById("barbeiroClientesTableBody");
     if (barbeiroTableBody) {
@@ -1461,7 +1461,7 @@ function excluirCliente(customerId) {
 
     const customers = JSON.parse(localStorage.getItem("customers")) || [];
     const filtrados = customers.filter(c => c.id !== customerId);
-
+    
     localStorage.setItem("customers", JSON.stringify(filtrados));
 
     exibirToast("Cliente Removido", "O cadastro do cliente foi apagado com sucesso.", "success");
@@ -1484,14 +1484,14 @@ function ajustarComissaoBarbeiro(barberId, novaComissaoVal) {
 
     const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
     const idx = barbers.findIndex(b => b.id === barberId);
-
+    
     if (idx !== -1) {
         barbers[idx].commission = novaComissao;
         localStorage.setItem("barbers", JSON.stringify(barbers));
 
         exibirToast("Comissão Atualizada! 📊", `A taxa de comissão de ${barbers[idx].name} foi definida em ${novaComissao}%.`, "success");
         criarAlertaSistema(`Configurações: Gerente alterou a comissão de ${barbers[idx].name} para ${novaComissao}%.`);
-
+        
         // Recalcular dashboard financeiro e lucros na hora!
         atualizarDashboard();
     }
@@ -1526,7 +1526,7 @@ function atualizarDashboard() {
     let desempenhos = barbers.map(barb => {
         const servConfirmados = agendamentosConfirmados.filter(b => b.barberId === barb.id).reduce((sum, b) => sum + b.price, 0);
         const servHistoricos = sales.filter(s => s.barberId === barb.id && s.type === "service").reduce((sum, s) => sum + s.price, 0);
-
+        
         const totalServicos = servConfirmados + servHistoricos;
         const totalProdutos = sales.filter(s => s.barberId === barb.id && s.type === "product").reduce((sum, s) => sum + s.price, 0);
 
@@ -1539,8 +1539,8 @@ function atualizarDashboard() {
         // Lucro líquido retido pela barbearia referente aos trabalhos dele
         const lucroRetido = totalGeral - comissaoPaga;
 
-        const totalTrabalhosBarbeiro = agendamentosConfirmados.filter(b => b.barberId === barb.id).length +
-            sales.filter(s => s.barberId === barb.id && s.type === "service").length;
+        const totalTrabalhosBarbeiro = agendamentosConfirmados.filter(b => b.barberId === barb.id).length + 
+                                       sales.filter(s => s.barberId === barb.id && s.type === "service").length;
 
         const mediaTrabalhosDia = (totalTrabalhosBarbeiro / 7).toFixed(1);
         const mediaVendasTrabalho = totalTrabalhosBarbeiro > 0 ? (totalGeral / totalTrabalhosBarbeiro) : 0;
@@ -1641,12 +1641,12 @@ function renderizarPendenciasPosVenda() {
 
     const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
     const customers = JSON.parse(localStorage.getItem('customers') || '[]');
-
+    
     // Pegar comandas concluídas que não tiveram feedback enviado
     const pendencias = bookings.filter(b => b.status === "concluido" && b.finalizadoEm && !b.feedbackSent);
-
+    
     const agora = new Date().getTime();
-
+    
     let html = "";
     let count = 0;
 
@@ -1657,11 +1657,11 @@ function renderizarPendenciasPosVenda() {
         // Se passou mais de 1 hora
         if (horasPassadas >= 1) {
             count++;
-
+            
             // Buscar telefone do cliente
             const cliente = customers.find(c => c.id === b.clientId);
             const telefone = cliente ? cliente.phone : "";
-
+            
             // Qual serviço foi feito
             const servicosRealizados = (b.servicos || []).map(s => s.nome).join(", ") || b.serviceName || "Serviço na barbearia";
 
@@ -1711,7 +1711,7 @@ function enviarMensagemPosVenda(bookingId, telefone, nomeCliente, servico) {
 
     // Mensagem Padrão
     const mensagem = `Olá ${nomeCliente}, aqui é da ${nomeBarbearia}! Tudo bem?\n\nVocê realizou um serviço de *${servico}* com a gente hoje.\n\nGostaríamos de saber o que achou do atendimento e do resultado! Seu feedback é muito importante para nós.`;
-
+    
     const url = `https://api.whatsapp.com/send?phone=${numero}&text=${encodeURIComponent(mensagem)}`;
 
     // Abrir no WhatsApp
@@ -1882,7 +1882,7 @@ function abrirModalForm(tipo, id = null) {
     const inputId = document.getElementById("formItemId");
     const inputTipo = document.getElementById("formItemTipo");
     const groupDuracao = document.getElementById("formGroupDuracao");
-
+    
     document.getElementById("itemCadastroForm").reset();
 
     inputTipo.value = tipo;
@@ -2014,8 +2014,8 @@ function exibirToast(titulo, descricao, tipo = "info") {
     const toast = document.createElement("div");
     toast.className = `toast ${tipo}`;
 
-    const icone = tipo === "success"
-        ? '<i class="fa-solid fa-circle-check toast-icon"></i>'
+    const icone = tipo === "success" 
+        ? '<i class="fa-solid fa-circle-check toast-icon"></i>' 
         : '<i class="fa-solid fa-circle-info toast-icon"></i>';
 
     toast.innerHTML = `
@@ -2099,7 +2099,7 @@ function marcarTodasNotificacoesLidas() {
     const notifications = JSON.parse(localStorage.getItem("notifications")) || [];
     notifications.forEach(n => n.unread = false);
     localStorage.setItem("notifications", JSON.stringify(notifications));
-
+    
     renderizarAlertas();
     exibirToast("Notificações Lidas", "Todos os logs foram marcados como lidos.", "success");
 }
@@ -2317,7 +2317,7 @@ function calcularRendimentosModal(barberId, commission) {
     const prodHistoricos = sales.filter(s => s.barberId === barberId && s.type === "product");
 
     const totalServicos = agendConfirmados.reduce((s, b) => s + b.price, 0)
-        + servHistoricos.reduce((s, i) => s + i.price, 0);
+                        + servHistoricos.reduce((s, i) => s + i.price, 0);
     const totalProdutos = prodHistoricos.reduce((s, i) => s + i.price, 0);
     const faturamentoBruto = totalServicos + totalProdutos;
     const comissaoPaga = faturamentoBruto * (commission / 100);
@@ -2412,7 +2412,7 @@ function salvarBarbeiroConfig(event) {
 
 // Sobrescrever a função de agendamento para filtrar barbeiros com active === false
 const _renderizarPassosAgendamentoOriginal = renderizarPassosAgendamento;
-renderizarPassosAgendamento = function () {
+renderizarPassosAgendamento = function() {
     const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
     const barbersFiltrados = barbers.filter(b => b.active !== false);
 
@@ -2432,9 +2432,9 @@ renderizarPassosAgendamento = function () {
                 <div class="barber-card ${isSelected}" onclick="selecionarBarbeiroAgendamento(${barb.id})">
                     <div class="barber-avatar-container">
                         ${barb.avatar
-                    ? `<img src="${barb.avatar}" alt="${barb.name}" class="barber-avatar">`
-                    : `<div class="barber-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);font-size:28px;color:var(--accent-gold);"><i class="fa-solid fa-scissors"></i></div>`
-                }
+                            ? `<img src="${barb.avatar}" alt="${barb.name}" class="barber-avatar">`
+                            : `<div class="barber-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);font-size:28px;color:var(--accent-gold);"><i class="fa-solid fa-scissors"></i></div>`
+                        }
                     </div>
                     <div class="barber-name">${barb.name}</div>
                     <div class="barber-specialty">${barb.specialty}</div>
@@ -2474,7 +2474,7 @@ renderizarPassosAgendamento = function () {
 // ==========================================================================
 
 const _atualizarDashboardOriginal = atualizarDashboard;
-atualizarDashboard = function () {
+atualizarDashboard = function() {
     if (currentUser && currentUser.role !== "gerente") return;
 
     const bookings = JSON.parse(localStorage.getItem("bookings")) || [];
@@ -2505,16 +2505,14 @@ atualizarDashboard = function () {
         comissoesPagasTotal += comissaoPaga;
         const lucroRetido = totalGeral - comissaoPaga;
         const totalTrabalhosBarbeiro = agendamentosConfirmados.filter(b => b.barberId === barb.id).length +
-            sales.filter(s => s.barberId === barb.id && s.type === "service").length;
+                                       sales.filter(s => s.barberId === barb.id && s.type === "service").length;
         const mediaTrabalhosDia = (totalTrabalhosBarbeiro / 7).toFixed(1);
         const mediaVendasTrabalho = totalTrabalhosBarbeiro > 0 ? (totalGeral / totalTrabalhosBarbeiro) : 0;
         const ativo = barb.active !== false;
 
-        return {
-            id: barb.id, name: barb.name, avatar: barb.avatar, specialty: barb.specialty,
-            commission: barb.commission, totalGeral, comissaoPaga, lucroRetido,
-            totalTrabalhos: totalTrabalhosBarbeiro, mediaTrabalhosDia, mediaVendasTrabalho, ativo
-        };
+        return { id: barb.id, name: barb.name, avatar: barb.avatar, specialty: barb.specialty,
+                 commission: barb.commission, totalGeral, comissaoPaga, lucroRetido,
+                 totalTrabalhos: totalTrabalhosBarbeiro, mediaTrabalhosDia, mediaVendasTrabalho, ativo };
     });
 
     const lucroLiquidoBarbearia = faturamentoTotal - comissoesPagasTotal;
@@ -2687,7 +2685,7 @@ function filtrarClientes() {
         const ultimoServicoBadge = formatarUltimoServicoBadge(ultimaDataISO);
         const cleanPhone = c.phone ? c.phone.replace(/\D/g, "") : "";
         const whatsappBtn = cleanPhone ? `<a href="https://wa.me/55${cleanPhone}" target="_blank" class="icon-btn" style="color:#25D366; margin-left:8px; display:inline-flex; align-items:center; text-decoration:none;" title="Conversar no WhatsApp"><i class="fa-brands fa-whatsapp" style="font-size:16px;"></i></a>` : "";
-
+        
         tbody.innerHTML += `
             <tr>
                 <td class="customer-name-col">${c.name}</td>
@@ -2721,7 +2719,7 @@ function limparFiltrosClientes() {
 // ==========================================================================
 
 const _renderizarClientesOriginal = renderizarClientes;
-renderizarClientes = function () {
+renderizarClientes = function() {
     const customers = JSON.parse(localStorage.getItem("customers")) || [];
 
     // Tabela do Barbeiro (restrição de privacidade — sem mudanças)
@@ -2744,8 +2742,8 @@ renderizarClientes = function () {
 
     // Tabela do Gerente — com coluna de último serviço e filtros aplicados se houver valor
     const filtroAtivo = document.getElementById("gerenteFiltroNome")?.value ||
-        document.getElementById("gerenteFiltroTelefone")?.value ||
-        document.getElementById("gerenteFiltroUltimoServico")?.value;
+                        document.getElementById("gerenteFiltroTelefone")?.value ||
+                        document.getElementById("gerenteFiltroUltimoServico")?.value;
 
     if (filtroAtivo) {
         filtrarClientes();
@@ -2760,7 +2758,7 @@ renderizarClientes = function () {
             const ultimoServicoBadge = formatarUltimoServicoBadge(ultimaDataISO);
             const cleanPhone = c.phone ? c.phone.replace(/\D/g, "") : "";
             const whatsappBtn = cleanPhone ? `<a href="https://wa.me/55${cleanPhone}" target="_blank" class="icon-btn" style="color:#25D366; margin-left:8px; display:inline-flex; align-items:center; text-decoration:none;" title="Conversar no WhatsApp"><i class="fa-brands fa-whatsapp" style="font-size:16px;"></i></a>` : "";
-
+            
             gerenteTableBody.innerHTML += `
                 <tr>
                     <td class="customer-name-col">${c.name}</td>
@@ -2781,7 +2779,7 @@ renderizarClientes = function () {
 // ==========================================================================
 
 const _trocarAbaGerenteOriginal = trocarAbaGerente;
-trocarAbaGerente = function (idAbaTarget, elementoBtn) {
+trocarAbaGerente = function(idAbaTarget, elementoBtn) {
     const abas = document.querySelectorAll("#portalGerente .tab-content");
     abas.forEach(aba => aba.classList.remove("active"));
 
@@ -2928,31 +2926,31 @@ function aplicarCSSVariaveis(cfg) {
     const hexLight = cfg.accentLight;
 
     // Converter hex para RGBA para as variáveis de glow/dim
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
 
-    root.style.setProperty("--accent-gold", hex);
-    root.style.setProperty("--accent-gold-light", hexLight);
-    root.style.setProperty("--accent-gold-glow", `rgba(${r},${g},${b},0.3)`);
-    root.style.setProperty("--accent-gold-dim", `rgba(${r},${g},${b},0.15)`);
-    root.style.setProperty("--glass-border", `rgba(${r},${g},${b},0.18)`);
-    root.style.setProperty("--shadow-gold", `0 0 20px rgba(${r},${g},${b},0.15)`);
+    root.style.setProperty("--accent-gold",       hex);
+    root.style.setProperty("--accent-gold-light",  hexLight);
+    root.style.setProperty("--accent-gold-glow",   `rgba(${r},${g},${b},0.3)`);
+    root.style.setProperty("--accent-gold-dim",    `rgba(${r},${g},${b},0.15)`);
+    root.style.setProperty("--glass-border",       `rgba(${r},${g},${b},0.18)`);
+    root.style.setProperty("--shadow-gold",        `0 0 20px rgba(${r},${g},${b},0.15)`);
 
-    root.style.setProperty("--bg-primary", cfg.bgPrimary);
-    root.style.setProperty("--bg-secondary", cfg.bgSecondary);
-    root.style.setProperty("--bg-tertiary", cfg.bgTertiary);
-    root.style.setProperty("--bg-card", cfg.bgCard);
-    root.style.setProperty("--glass-bg", `rgba(${parseInt(cfg.bgSecondary.slice(1, 3), 16)},${parseInt(cfg.bgSecondary.slice(3, 5), 16)},${parseInt(cfg.bgSecondary.slice(5, 7), 16)},0.75)`);
+    root.style.setProperty("--bg-primary",    cfg.bgPrimary);
+    root.style.setProperty("--bg-secondary",  cfg.bgSecondary);
+    root.style.setProperty("--bg-tertiary",   cfg.bgTertiary);
+    root.style.setProperty("--bg-card",       cfg.bgCard);
+    root.style.setProperty("--glass-bg",      `rgba(${parseInt(cfg.bgSecondary.slice(1,3),16)},${parseInt(cfg.bgSecondary.slice(3,5),16)},${parseInt(cfg.bgSecondary.slice(5,7),16)},0.75)`);
 }
 
 function aplicarIdentidadeVisual(cfg) {
     // Header do app
     const nome = cfg.nomeBarbearia || "The Golden Blade";
-    const tag = cfg.tagline || "Gentleman's Club";
+    const tag  = cfg.tagline || "Gentleman's Club";
 
     document.querySelectorAll(".logo-text").forEach(el => el.textContent = nome);
-    document.querySelectorAll(".logo-tag").forEach(el => el.textContent = tag);
+    document.querySelectorAll(".logo-tag").forEach(el  => el.textContent = tag);
 
     // Login
     const loginH2 = document.querySelector(".login-logo h2");
@@ -2962,7 +2960,7 @@ function aplicarIdentidadeVisual(cfg) {
 
     // Logo
     const logoIconHeader = document.querySelector(".logo-icon");
-    const loginIconEl = document.querySelector(".login-logo-icon");
+    const loginIconEl   = document.querySelector(".login-logo-icon");
 
     if (cfg.logoBase64) {
         // Mostrar imagem em vez do ícone
@@ -2974,7 +2972,7 @@ function aplicarIdentidadeVisual(cfg) {
         }
     } else {
         if (logoIconHeader) logoIconHeader.innerHTML = `<i class="fa-solid fa-scissors"></i>`;
-        if (loginIconEl) loginIconEl.innerHTML = `<i class="fa-solid fa-scissors"></i>`;
+        if (loginIconEl)    loginIconEl.innerHTML    = `<i class="fa-solid fa-scissors"></i>`;
     }
 }
 
@@ -2992,16 +2990,16 @@ function renderizarConfiguracoes() {
 
     // Preencher campos
     const nomeEl = document.getElementById("configNomeBarbearia");
-    const tagEl = document.getElementById("configTagline");
+    const tagEl  = document.getElementById("configTagline");
     if (nomeEl) nomeEl.value = cfg.nomeBarbearia || "";
-    if (tagEl) tagEl.value = cfg.tagline || "";
+    if (tagEl)  tagEl.value  = cfg.tagline || "";
 
     // Preview de nome
     previewNomeLogo();
 
     // Logo preview
     const iconEl = document.getElementById("logoPreviewIcon");
-    const imgEl = document.getElementById("logoPreviewImg");
+    const imgEl  = document.getElementById("logoPreviewImg");
     if (cfg.logoBase64 && imgEl && iconEl) {
         imgEl.src = cfg.logoBase64;
         imgEl.style.display = "block";
@@ -3013,9 +3011,9 @@ function renderizarConfiguracoes() {
 
     // Color picker
     const picker = document.getElementById("corPersonalizadaInput");
-    const label = document.getElementById("corHexLabel");
+    const label  = document.getElementById("corHexLabel");
     if (picker) picker.value = cfg.accentColor;
-    if (label) label.textContent = cfg.accentColor;
+    if (label)  label.textContent = cfg.accentColor;
     previewCorPersonalizada(cfg.accentColor);
 
     // Temas grid
@@ -3046,28 +3044,28 @@ function aplicarTema(temaId) {
 
     const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, {
-        temaId: tema.id,
-        accentColor: tema.accentColor,
-        accentLight: tema.accentLight,
-        bgPrimary: tema.bgPrimary,
-        bgSecondary: tema.bgSecondary,
-        bgTertiary: tema.bgTertiary,
-        bgCard: tema.bgCard
+        temaId:       tema.id,
+        accentColor:  tema.accentColor,
+        accentLight:  tema.accentLight,
+        bgPrimary:    tema.bgPrimary,
+        bgSecondary:  tema.bgSecondary,
+        bgTertiary:   tema.bgTertiary,
+        bgCard:       tema.bgCard
     });
 
     aplicarCSSVariaveis(cfg);
 
     // Atualizar picker e label
     const picker = document.getElementById("corPersonalizadaInput");
-    const label = document.getElementById("corHexLabel");
+    const label  = document.getElementById("corHexLabel");
     if (picker) picker.value = tema.accentColor;
-    if (label) label.textContent = tema.accentColor;
+    if (label)  label.textContent = tema.accentColor;
     previewCorPersonalizada(tema.accentColor);
 
     // Marcar ativo na grade
     document.querySelectorAll(".tema-card").forEach(el => el.classList.remove("ativo"));
     const cards = document.querySelectorAll(".tema-card");
-    const idx = TEMAS_PREDEFINIDOS.findIndex(t => t.id === temaId);
+    const idx   = TEMAS_PREDEFINIDOS.findIndex(t => t.id === temaId);
     if (cards[idx]) cards[idx].classList.add("ativo");
 
     // Salvar temporariamente (sem fechar aba)
@@ -3083,9 +3081,9 @@ function previewCorPersonalizada(hex) {
     const swatches = document.getElementById("colorPreviewSwatches");
     if (!swatches) return;
 
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
 
     swatches.innerHTML = `
         <div class="color-preview-swatch" style="background:${hex};" title="Cor principal"></div>
@@ -3101,14 +3099,14 @@ function aplicarCorPersonalizada() {
     const hex = picker.value;
 
     // Gerar uma versão mais clara (+50 luminosidade aproximada)
-    const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + 40);
-    const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + 35);
-    const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + 20);
-    const hexLight = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+    const r = Math.min(255, parseInt(hex.slice(1,3), 16) + 40);
+    const g = Math.min(255, parseInt(hex.slice(3,5), 16) + 35);
+    const b = Math.min(255, parseInt(hex.slice(5,7), 16) + 20);
+    const hexLight = "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
 
     const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, {
-        temaId: "custom",
+        temaId:      "custom",
         accentColor: hex,
         accentLight: hexLight
     });
@@ -3124,11 +3122,11 @@ function aplicarCorPersonalizada() {
 
 function previewNomeLogo() {
     const nome = document.getElementById("configNomeBarbearia")?.value || "The Golden Blade";
-    const tag = document.getElementById("configTagline")?.value || "Gentleman's Club";
+    const tag  = document.getElementById("configTagline")?.value || "Gentleman's Club";
     const nomeEl = document.getElementById("previewNomeText");
-    const tagEl = document.getElementById("previewTaglineText");
+    const tagEl  = document.getElementById("previewTaglineText");
     if (nomeEl) nomeEl.textContent = nome;
-    if (tagEl) tagEl.textContent = tag;
+    if (tagEl)  tagEl.textContent  = tag;
 }
 
 function uploadLogoArquivo(input) {
@@ -3143,7 +3141,7 @@ function uploadLogoArquivo(input) {
     }
 
     const reader = new FileReader();
-    reader.onload = function (e) {
+    reader.onload = function(e) {
         // Abre o cropper em vez de salvar direto
         abrirCropperLogo(e.target.result);
     };
@@ -3168,7 +3166,7 @@ const _cr = {
 
 function abrirCropperLogo(dataUrl) {
     const img = new Image();
-    img.onload = function () {
+    img.onload = function() {
         _cr.img = img;
         _cr.zoom = 1;
         // Centralizar automaticamente
@@ -3180,8 +3178,8 @@ function abrirCropperLogo(dataUrl) {
         // Resetar slider
         const slider = document.getElementById("cropperZoom");
         if (slider) {
-            slider.min = (scaleBase * 0.5).toFixed(2);
-            slider.max = (scaleBase * 4).toFixed(2);
+            slider.min  = (scaleBase * 0.5).toFixed(2);
+            slider.max  = (scaleBase * 4).toFixed(2);
             slider.step = (scaleBase * 0.01).toFixed(4);
             slider.value = _cr.zoom;
         }
@@ -3292,7 +3290,7 @@ function _desenharCropper() {
 
     // Desenhar imagem deslocada/com zoom
     const img = _cr.img;
-    const dW = img.width * _cr.zoom;
+    const dW = img.width  * _cr.zoom;
     const dH = img.height * _cr.zoom;
     const dX = (S - dW) / 2 + _cr.offsetX;
     const dY = (S - dH) / 2 + _cr.offsetY;
@@ -3303,7 +3301,7 @@ function _desenharCropper() {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.beginPath();
     ctx.rect(0, 0, S, S);
-    ctx.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2, true); // furar o meio
+    ctx.arc(S/2, S/2, S/2 - 4, 0, Math.PI * 2, true); // furar o meio
     ctx.fill("evenodd");
     ctx.restore();
 
@@ -3311,7 +3309,7 @@ function _desenharCropper() {
     ctx.strokeStyle = "var(--accent-gold, #c5a028)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2);
+    ctx.arc(S/2, S/2, S/2 - 4, 0, Math.PI * 2);
     ctx.stroke();
 
     // Atualizar mini preview
@@ -3326,7 +3324,7 @@ function _atualizarPreviewCropper(dX, dY, dW, dH) {
     pCtx.clearRect(0, 0, P, P);
     pCtx.save();
     pCtx.beginPath();
-    pCtx.arc(P / 2, P / 2, P / 2, 0, Math.PI * 2);
+    pCtx.arc(P/2, P/2, P/2, 0, Math.PI * 2);
     pCtx.clip();
     // Escalar coordenadas do canvas grande para o preview
     const scale = P / _cr.SIZE;
@@ -3347,15 +3345,15 @@ function confirmarCropLogo() {
 
     // Clip circular
     octx.beginPath();
-    octx.arc(O / 2, O / 2, O / 2, 0, Math.PI * 2);
+    octx.arc(O/2, O/2, O/2, 0, Math.PI * 2);
     octx.clip();
 
     // Replicar posicionamento do cropper, escalado para 256
     const factor = O / S;
     const img = _cr.img;
-    const dW = img.width * _cr.zoom * factor;
+    const dW = img.width  * _cr.zoom * factor;
     const dH = img.height * _cr.zoom * factor;
-    const dX = ((S - img.width * _cr.zoom) / 2 + _cr.offsetX) * factor;
+    const dX = ((S - img.width  * _cr.zoom) / 2 + _cr.offsetX) * factor;
     const dY = ((S - img.height * _cr.zoom) / 2 + _cr.offsetY) * factor;
 
     octx.drawImage(img, dX, dY, dW, dH);
@@ -3370,7 +3368,7 @@ function confirmarCropLogo() {
 
     // Atualizar preview na aba de configurações
     const iconEl = document.getElementById("logoPreviewIcon");
-    const imgEl = document.getElementById("logoPreviewImg");
+    const imgEl  = document.getElementById("logoPreviewImg");
     if (imgEl) { imgEl.src = base64; imgEl.style.display = "block"; }
     if (iconEl) iconEl.style.display = "none";
 
@@ -3381,9 +3379,9 @@ function confirmarCropLogo() {
 
 function removerLogo() {
     const iconEl = document.getElementById("logoPreviewIcon");
-    const imgEl = document.getElementById("logoPreviewImg");
+    const imgEl  = document.getElementById("logoPreviewImg");
     const fileInput = document.getElementById("logoFileInput");
-    if (imgEl) { imgEl.src = ""; imgEl.style.display = "none"; }
+    if (imgEl)  { imgEl.src = ""; imgEl.style.display = "none"; }
     if (iconEl) iconEl.style.display = "flex";
     if (fileInput) fileInput.value = "";
 
@@ -3398,7 +3396,7 @@ function removerLogo() {
 function salvarConfiguracaoVisual() {
     try {
         const nome = (document.getElementById("configNomeBarbearia")?.value || "").trim() || "The Golden Blade";
-        const tag = (document.getElementById("configTagline")?.value || "").trim() || "Gentleman's Club";
+        const tag  = (document.getElementById("configTagline")?.value  || "").trim() || "Gentleman's Club";
 
         // Capturar cor diretamente do picker (funciona mesmo sem clicar em "Aplicar Cor")
         const picker = document.getElementById("corPersonalizadaInput");
@@ -3406,17 +3404,17 @@ function salvarConfiguracaoVisual() {
 
         let accentOverride = {};
         if (hexAtual) {
-            const r = Math.min(255, parseInt(hexAtual.slice(1, 3), 16) + 40);
-            const g = Math.min(255, parseInt(hexAtual.slice(3, 5), 16) + 35);
-            const b = Math.min(255, parseInt(hexAtual.slice(5, 7), 16) + 20);
-            const light = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+            const r = Math.min(255, parseInt(hexAtual.slice(1,3),16) + 40);
+            const g = Math.min(255, parseInt(hexAtual.slice(3,5),16) + 35);
+            const b = Math.min(255, parseInt(hexAtual.slice(5,7),16) + 20);
+            const light = "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
             accentOverride = { accentColor: hexAtual, accentLight: light };
         }
 
         const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
         const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, accentOverride, {
             nomeBarbearia: nome,
-            tagline: tag
+            tagline:       tag
         });
 
         localStorage.setItem("visualConfig", JSON.stringify(cfg));
@@ -3427,13 +3425,8 @@ function salvarConfiguracaoVisual() {
         if (typeof criarAlertaSistema === "function") {
             criarAlertaSistema(`Visual: Gerente atualizou o tema — Nome: "${nome}", Cor: ${cfg.accentColor}.`);
         }
-    } catch (err) {
+    } catch(err) {
         console.error("salvarConfiguracaoVisual:", err);
-        exibirToast("Erro ao salvar ❌", "Não foi possível salvar as configurações.", "error");
-    } // <-- Fechou o catch e a função salvarConfiguracaoVisual
-}
-
-// Função de resetar isolada corretamente do lado de fora
 function resetarConfiguracaoVisual() {
     if (!confirm("⚠️ Tem certeza que deseja restaurar o visual padrão (Dourado Clássico)?\nTodas as personalizações serão perdidas.")) return;
 
@@ -3444,794 +3437,794 @@ function resetarConfiguracaoVisual() {
     exibirToast("Visual Restaurado 🔄", "O tema padrão Dourado Clássico foi aplicado.", "info");
 }
 
-        // ==========================================================================
-        // AGENDA TIMELINE — VISUALIZAÇÃO POR COLUNAS COM SLOTS DE 15 MINUTOS
-        // ==========================================================================
+// ==========================================================================
+// AGENDA TIMELINE — VISUALIZAÇÃO POR COLUNAS COM SLOTS DE 15 MINUTOS
+// ==========================================================================
 
-        let _agendaDate = new Date(); // Data exibida na timeline
+let _agendaDate = new Date(); // Data exibida na timeline
 
-        function _gerarSlots() {
-            // 08:00 até 19:45 de 15 em 15 minutos = 48 slots
-            const slots = [];
-            for (let h = 8; h < 20; h++) {
-                for (let m = 0; m < 60; m += 15) {
-                    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-                }
+function _gerarSlots() {
+    // 08:00 até 19:45 de 15 em 15 minutos = 48 slots
+    const slots = [];
+    for (let h = 8; h < 20; h++) {
+        for (let m = 0; m < 60; m += 15) {
+            slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+        }
+    }
+    return slots;
+}
+
+function _formatarDataAgenda(date) {
+    const dias  = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const hoje = new Date();
+    const amanha = new Date(hoje); amanha.setDate(hoje.getDate() + 1);
+    let prefixo = '';
+    if (date.toDateString() === hoje.toDateString()) prefixo = 'Hoje — ';
+    else if (date.toDateString() === amanha.toDateString()) prefixo = 'Amanhã — ';
+    return `${prefixo}${dias[date.getDay()]}, ${date.getDate()} de ${meses[date.getMonth()]}`;
+}
+
+function _dateToISO(date) {
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function navegarDiaAgenda(delta) {
+    _agendaDate.setDate(_agendaDate.getDate() + delta);
+    renderizarAgendaTimeline();
+}
+
+function irParaHojeAgenda() {
+    _agendaDate = new Date();
+    renderizarAgendaTimeline();
+}
+
+function renderizarAgendaTimeline() {
+    // Atualizar label de data
+    const labelEl = document.getElementById('agendaTlDataTexto');
+    if (labelEl) labelEl.textContent = _formatarDataAgenda(_agendaDate);
+
+    const barbers  = JSON.parse(localStorage.getItem('barbers')  || '[]').filter(b => b.active !== false);
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const dateStr  = _dateToISO(_agendaDate);
+    const dayBookings = bookings.filter(b => b.date === dateStr);
+    const slots = _gerarSlots();
+
+    const container = document.getElementById('agendaTlContainer');
+    if (!container) return;
+
+    // Calcular posição da linha do horário atual
+    const now = new Date();
+    const isToday = now.toDateString() === _agendaDate.toDateString();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMin   = 8 * 60; // 08:00
+    const endMin     = 20 * 60; // 20:00
+    const nowOffset  = ((nowMinutes - startMin) / (endMin - startMin)) * (slots.length * 40);
+
+    let html = '';
+
+    // Coluna de horários
+    html += '<div class="agenda-time-col">';
+    slots.forEach(t => {
+        const isHora = t.endsWith(':00');
+        html += `<div class="agenda-time-label${isHora ? ' hora-cheia' : ''}">${isHora ? t : '<span style="opacity:.4">'+t+'</span>'}</div>`;
+    });
+    html += '</div>';
+
+    // Colunas dos barbeiros
+    if (barbers.length === 0) {
+        html += '<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text-muted);font-size:14px;">' +
+                '<i class="fa-solid fa-user-slash" style="margin-right:8px;"></i> Nenhum profissional ativo cadastrado.</div>';
+    } else {
+        barbers.forEach(barber => {
+            const barberBookings = dayBookings.filter(b => b.barberId == barber.id);
+
+            html += `<div class="agenda-barber-col" style="position:relative;">`;
+
+            // Header do barbeiro
+            let avatarHtml = barber.foto
+                ? `<img class="agenda-barber-avatar-sm" src="${barber.foto}" alt="${barber.name || barber.nome}">`
+                : `<div class="agenda-barber-avatar-icon"><i class="fa-solid fa-user"></i></div>`;
+
+            html += `<div class="agenda-barber-header">${avatarHtml}<span class="agenda-barber-name">${(barber.name || barber.nome).split(' ')[0]}</span></div>`;
+
+            // Linha de horário atual
+            if (isToday && nowMinutes >= startMin && nowMinutes <= endMin) {
+                html += `<div class="agenda-now-line" style="top:${nowOffset + 52}px;"></div>`;
             }
-            return slots;
-        }
 
-        function _formatarDataAgenda(date) {
-            const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-            const hoje = new Date();
-            const amanha = new Date(hoje); amanha.setDate(hoje.getDate() + 1);
-            let prefixo = '';
-            if (date.toDateString() === hoje.toDateString()) prefixo = 'Hoje — ';
-            else if (date.toDateString() === amanha.toDateString()) prefixo = 'Amanhã — ';
-            return `${prefixo}${dias[date.getDay()]}, ${date.getDate()} de ${meses[date.getMonth()]}`;
-        }
+            // Slots
+            slots.forEach(slot => {
+                const booking = barberBookings.find(b => b.time === slot);
+                const isHora  = slot.endsWith(':00');
 
-        function _dateToISO(date) {
-            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        }
-
-        function navegarDiaAgenda(delta) {
-            _agendaDate.setDate(_agendaDate.getDate() + delta);
-            renderizarAgendaTimeline();
-        }
-
-        function irParaHojeAgenda() {
-            _agendaDate = new Date();
-            renderizarAgendaTimeline();
-        }
-
-        function renderizarAgendaTimeline() {
-            // Atualizar label de data
-            const labelEl = document.getElementById('agendaTlDataTexto');
-            if (labelEl) labelEl.textContent = _formatarDataAgenda(_agendaDate);
-
-            const barbers = JSON.parse(localStorage.getItem('barbers') || '[]').filter(b => b.active !== false);
-            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-            const dateStr = _dateToISO(_agendaDate);
-            const dayBookings = bookings.filter(b => b.date === dateStr);
-            const slots = _gerarSlots();
-
-            const container = document.getElementById('agendaTlContainer');
-            if (!container) return;
-
-            // Calcular posição da linha do horário atual
-            const now = new Date();
-            const isToday = now.toDateString() === _agendaDate.toDateString();
-            const nowMinutes = now.getHours() * 60 + now.getMinutes();
-            const startMin = 8 * 60; // 08:00
-            const endMin = 20 * 60; // 20:00
-            const nowOffset = ((nowMinutes - startMin) / (endMin - startMin)) * (slots.length * 40);
-
-            let html = '';
-
-            // Coluna de horários
-            html += '<div class="agenda-time-col">';
-            slots.forEach(t => {
-                const isHora = t.endsWith(':00');
-                html += `<div class="agenda-time-label${isHora ? ' hora-cheia' : ''}">${isHora ? t : '<span style="opacity:.4">' + t + '</span>'}</div>`;
-            });
-            html += '</div>';
-
-            // Colunas dos barbeiros
-            if (barbers.length === 0) {
-                html += '<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text-muted);font-size:14px;">' +
-                    '<i class="fa-solid fa-user-slash" style="margin-right:8px;"></i> Nenhum profissional ativo cadastrado.</div>';
-            } else {
-                barbers.forEach(barber => {
-                    const barberBookings = dayBookings.filter(b => b.barberId == barber.id);
-
-                    html += `<div class="agenda-barber-col" style="position:relative;">`;
-
-                    // Header do barbeiro
-                    let avatarHtml = barber.foto
-                        ? `<img class="agenda-barber-avatar-sm" src="${barber.foto}" alt="${barber.name || barber.nome}">`
-                        : `<div class="agenda-barber-avatar-icon"><i class="fa-solid fa-user"></i></div>`;
-
-                    html += `<div class="agenda-barber-header">${avatarHtml}<span class="agenda-barber-name">${(barber.name || barber.nome).split(' ')[0]}</span></div>`;
-
-                    // Linha de horário atual
-                    if (isToday && nowMinutes >= startMin && nowMinutes <= endMin) {
-                        html += `<div class="agenda-now-line" style="top:${nowOffset + 52}px;"></div>`;
-                    }
-
-                    // Slots
-                    slots.forEach(slot => {
-                        const booking = barberBookings.find(b => b.time === slot);
-                        const isHora = slot.endsWith(':00');
-
-                        if (booking) {
-                            const statusClass = booking.status === 'concluido' ? 'concluido' : 'pendente';
-                            const clientName = _getClientNameById(booking.clientId) || booking.clienteNome || 'Cliente';
-                            const serviceName = booking.servicos && booking.servicos.length > 0 ? (booking.servicos[0].name || booking.servicos[0].nome) : booking.servico || '—';
-                            html += `<div class="agenda-slot ocupado${isHora ? ' hora-cheia' : ''}" data-barber="${barber.id}" data-slot="${slot}">
+                if (booking) {
+                    const statusClass = booking.status === 'concluido' ? 'concluido' : 'pendente';
+                    const clientName  = _getClientNameById(booking.clientId) || booking.clienteNome || 'Cliente';
+                    const serviceName = booking.servicos && booking.servicos.length > 0 ? (booking.servicos[0].name || booking.servicos[0].nome) : booking.servico || '—';
+                    html += `<div class="agenda-slot ocupado${isHora ? ' hora-cheia' : ''}" data-barber="${barber.id}" data-slot="${slot}">
                                 <div class="agenda-booking-card ${statusClass}" onclick="verDetalhesComanda('${booking.id}')" title="${clientName} — ${serviceName}">
                                     <i class="fa-solid fa-circle" style="font-size:6px;"></i>
                                     <span>${clientName.split(' ')[0]} · ${serviceName}</span>
                                 </div>
                              </div>`;
-                        } else {
-                            html += `<div class="agenda-slot${isHora ? ' hora-cheia' : ''}"
+                } else {
+                    html += `<div class="agenda-slot${isHora ? ' hora-cheia' : ''}"
                                 onclick="abrirComanda('${barber.id}','${slot}','${dateStr}')"
                                 data-barber="${barber.id}" data-slot="${slot}">
                                 <div class="agenda-slot-add"><i class="fa-solid fa-plus"></i> Abrir</div>
                              </div>`;
-                        }
-                    });
-
-                    html += '</div>'; // .agenda-barber-col
-                });
-            }
-
-            container.innerHTML = html;
-        }
-
-        function _getClientNameById(id) {
-            if (!id) return null;
-            const customers = JSON.parse(localStorage.getItem('customers') || '[]');
-            const c = customers.find(c => c.id == id);
-            return c ? (c.name || c.nome) : null;
-        }
-
-        // ==========================================================================
-        // MODAL DE COMANDA — ESTADO E FUNÇÕES
-        // ==========================================================================
-
-        const _cmd = {
-            barberId: null,
-            barberName: '',
-            time: null,
-            date: null,
-            clientId: null,
-            clientName: '',
-            items: [],         // { tipo, id, nome, preco }
-            pagamento: 'dinheiro'
-        };
-
-        function _popularHorariosComanda() {
-            const sel = document.getElementById('comandaHorario');
-            if (!sel) return;
-            const slots = _gerarSlots();
-            sel.innerHTML = slots.map(s => `<option value="${s}">${s}</option>`).join('');
-        }
-
-        function _popularBarbeirosComanda() {
-            const sel = document.getElementById('comandaBarbeiroSelect');
-            if (!sel) return;
-            const barbers = JSON.parse(localStorage.getItem('barbers') || '[]').filter(b => b.active !== false);
-            sel.innerHTML = '<option value="">— Selecione —</option>' +
-                barbers.map(b => `<option value="${b.id}">${b.name || b.nome || 'Barbeiro'}</option>`).join('');
-        }
-
-        function abrirComanda(barberId, slot, dateStr) {
-            // Resetar estado
-            _cmd.barberId = barberId;
-            _cmd.barberName = '';
-            _cmd.time = slot;
-            _cmd.date = dateStr;
-            _cmd.clientId = null;
-            _cmd.clientName = '';
-            _cmd.items = [];
-            _cmd.pagamento = 'dinheiro';
-
-            // Preencher campos
-            _popularBarbeirosComanda();
-            _popularHorariosComanda();
-
-            // Data padrão = data da agenda ou hoje
-            const dataInput = document.getElementById('comandaData');
-            if (dataInput) dataInput.value = dateStr || _dateToISO(new Date());
-
-            // Horário pré-selecionado
-            const horaSel = document.getElementById('comandaHorario');
-            if (horaSel && slot) horaSel.value = slot;
-
-            // Barbeiro pré-selecionado
-            const barberSel = document.getElementById('comandaBarbeiroSelect');
-            if (barberSel && barberId) {
-                barberSel.value = barberId;
-                onComandaBarberChange();
-            }
-
-            // Limpar campo de cliente
-            limparClienteComanda();
-
-            // Pagamento padrão
-            selecionarPagamento('dinheiro', document.getElementById('pgDinheiro'));
-
-            // Renderizar listas de serviços e produtos
-            _renderizarListaServicosComanda();
-            _renderizarListaProdutosComanda();
-            _atualizarResumoComanda();
-
-            // Abrir modal
-            document.getElementById('modalComanda').classList.add('active');
-        }
-
-        function fecharComanda() {
-            document.getElementById('modalComanda').classList.remove('active');
-        }
-
-        function onComandaBarberChange() {
-            const barberSel = document.getElementById('comandaBarbeiroSelect');
-            const barbers = JSON.parse(localStorage.getItem('barbers') || '[]');
-            const barber = barbers.find(b => b.id == barberSel?.value);
-            _cmd.barberId = barber ? barber.id : null;
-            _cmd.barberName = barber ? (barber.name || barber.nome) : '';
-
-            // Atualizar avatar e sub do header
-            const avatarEl = document.getElementById('comandaBarberAvatar');
-            const subEl = document.getElementById('comandaHeaderSub');
-            if (barber) {
-                if (barber.foto && avatarEl) avatarEl.innerHTML = `<img src="${barber.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-                else if (avatarEl) avatarEl.innerHTML = '<i class="fa-solid fa-scissors"></i>';
-                if (subEl) {
-                    const horaSel = document.getElementById('comandaHorario');
-                    const dataInput = document.getElementById('comandaData');
-                    subEl.textContent = `${barber.name || barber.nome} · ${dataInput?.value || '—'} às ${horaSel?.value || '—'}`;
                 }
-            } else {
-                if (avatarEl) avatarEl.innerHTML = '<i class="fa-solid fa-scissors"></i>';
-                if (subEl) subEl.textContent = 'Selecione o profissional e horário';
-            }
+            });
+
+            html += '</div>'; // .agenda-barber-col
+        });
+    }
+
+    container.innerHTML = html;
+}
+
+function _getClientNameById(id) {
+    if (!id) return null;
+    const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+    const c = customers.find(c => c.id == id);
+    return c ? (c.name || c.nome) : null;
+}
+
+// ==========================================================================
+// MODAL DE COMANDA — ESTADO E FUNÇÕES
+// ==========================================================================
+
+const _cmd = {
+    barberId:    null,
+    barberName:  '',
+    time:        null,
+    date:        null,
+    clientId:    null,
+    clientName:  '',
+    items:       [],         // { tipo, id, nome, preco }
+    pagamento:   'dinheiro'
+};
+
+function _popularHorariosComanda() {
+    const sel = document.getElementById('comandaHorario');
+    if (!sel) return;
+    const slots = _gerarSlots();
+    sel.innerHTML = slots.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+function _popularBarbeirosComanda() {
+    const sel = document.getElementById('comandaBarbeiroSelect');
+    if (!sel) return;
+    const barbers = JSON.parse(localStorage.getItem('barbers') || '[]').filter(b => b.active !== false);
+    sel.innerHTML = '<option value="">— Selecione —</option>' +
+        barbers.map(b => `<option value="${b.id}">${b.name || b.nome || 'Barbeiro'}</option>`).join('');
+}
+
+function abrirComanda(barberId, slot, dateStr) {
+    // Resetar estado
+    _cmd.barberId   = barberId;
+    _cmd.barberName = '';
+    _cmd.time       = slot;
+    _cmd.date       = dateStr;
+    _cmd.clientId   = null;
+    _cmd.clientName = '';
+    _cmd.items      = [];
+    _cmd.pagamento  = 'dinheiro';
+
+    // Preencher campos
+    _popularBarbeirosComanda();
+    _popularHorariosComanda();
+
+    // Data padrão = data da agenda ou hoje
+    const dataInput = document.getElementById('comandaData');
+    if (dataInput) dataInput.value = dateStr || _dateToISO(new Date());
+
+    // Horário pré-selecionado
+    const horaSel = document.getElementById('comandaHorario');
+    if (horaSel && slot) horaSel.value = slot;
+
+    // Barbeiro pré-selecionado
+    const barberSel = document.getElementById('comandaBarbeiroSelect');
+    if (barberSel && barberId) {
+        barberSel.value = barberId;
+        onComandaBarberChange();
+    }
+
+    // Limpar campo de cliente
+    limparClienteComanda();
+
+    // Pagamento padrão
+    selecionarPagamento('dinheiro', document.getElementById('pgDinheiro'));
+
+    // Renderizar listas de serviços e produtos
+    _renderizarListaServicosComanda();
+    _renderizarListaProdutosComanda();
+    _atualizarResumoComanda();
+
+    // Abrir modal
+    document.getElementById('modalComanda').classList.add('active');
+}
+
+function fecharComanda() {
+    document.getElementById('modalComanda').classList.remove('active');
+}
+
+function onComandaBarberChange() {
+    const barberSel = document.getElementById('comandaBarbeiroSelect');
+    const barbers = JSON.parse(localStorage.getItem('barbers') || '[]');
+    const barber  = barbers.find(b => b.id == barberSel?.value);
+    _cmd.barberId   = barber ? barber.id : null;
+    _cmd.barberName = barber ? (barber.name || barber.nome) : '';
+
+    // Atualizar avatar e sub do header
+    const avatarEl = document.getElementById('comandaBarberAvatar');
+    const subEl    = document.getElementById('comandaHeaderSub');
+    if (barber) {
+        if (barber.foto && avatarEl) avatarEl.innerHTML = `<img src="${barber.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        else if (avatarEl) avatarEl.innerHTML = '<i class="fa-solid fa-scissors"></i>';
+        if (subEl) {
+            const horaSel = document.getElementById('comandaHorario');
+            const dataInput = document.getElementById('comandaData');
+            subEl.textContent = `${barber.name || barber.nome} · ${dataInput?.value || '—'} às ${horaSel?.value || '—'}`;
         }
+    } else {
+        if (avatarEl) avatarEl.innerHTML = '<i class="fa-solid fa-scissors"></i>';
+        if (subEl) subEl.textContent = 'Selecione o profissional e horário';
+    }
+}
 
-        // Busca de clientes com typeahead
-        let _clienteSearchTimer = null;
-        function buscarClienteComanda(query) {
-            clearTimeout(_clienteSearchTimer);
-            const resultsEl = document.getElementById('comandaClienteResults');
-            if (!resultsEl) return;
+// Busca de clientes com typeahead
+let _clienteSearchTimer = null;
+function buscarClienteComanda(query) {
+    clearTimeout(_clienteSearchTimer);
+    const resultsEl = document.getElementById('comandaClienteResults');
+    if (!resultsEl) return;
 
-            if (!query || query.trim().length < 2) {
-                resultsEl.style.display = 'none';
-                return;
-            }
+    if (!query || query.trim().length < 2) {
+        resultsEl.style.display = 'none';
+        return;
+    }
 
-            _clienteSearchTimer = setTimeout(() => {
-                const customers = JSON.parse(localStorage.getItem('customers') || '[]');
-                const q = query.toLowerCase();
-                const matches = customers.filter(c =>
-                    ((c.name || c.nome) || '').toLowerCase().includes(q) ||
-                    ((c.phone || c.telefone) || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
-                ).slice(0, 8);
+    _clienteSearchTimer = setTimeout(() => {
+        const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+        const q = query.toLowerCase();
+        const matches = customers.filter(c =>
+            ((c.name || c.nome) || '').toLowerCase().includes(q) ||
+            ((c.phone || c.telefone) || '').replace(/\D/g,'').includes(q.replace(/\D/g,''))
+        ).slice(0, 8);
 
-                if (matches.length === 0) {
-                    resultsEl.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--text-muted);">Nenhum cliente encontrado</div>';
-                } else {
-                    resultsEl.innerHTML = matches.map(c => `
-                <div class="comanda-cliente-result-item" onclick="selecionarClienteComanda('${c.id}', '${((c.name || c.nome) || '').replace(/'/g, "\\'")}')">
+        if (matches.length === 0) {
+            resultsEl.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--text-muted);">Nenhum cliente encontrado</div>';
+        } else {
+            resultsEl.innerHTML = matches.map(c => `
+                <div class="comanda-cliente-result-item" onclick="selecionarClienteComanda('${c.id}', '${((c.name || c.nome)||'').replace(/'/g,"\\'")}')">
                     <strong>${(c.name || c.nome) || 'Sem nome'}</strong>
-                    <span>${(c.phone || c.telefone) || ''} ${c.email ? '· ' + c.email : ''}</span>
+                    <span>${(c.phone || c.telefone) || ''} ${c.email ? '· '+c.email : ''}</span>
                 </div>
             `).join('');
-                }
-                resultsEl.style.display = 'block';
-            }, 250);
         }
+        resultsEl.style.display = 'block';
+    }, 250);
+}
 
-        function selecionarClienteComanda(clientId, clientName) {
-            _cmd.clientId = clientId;
-            _cmd.clientName = clientName;
+function selecionarClienteComanda(clientId, clientName) {
+    _cmd.clientId   = clientId;
+    _cmd.clientName = clientName;
 
-            // Esconder campo de busca e mostrar selecionado
-            const searchEl = document.getElementById('comandaClienteSearch');
-            const resultsEl = document.getElementById('comandaClienteResults');
-            const selEl = document.getElementById('comandaClienteSelecionado');
-            const nomeEl = document.getElementById('comandaClienteNomeSel');
+    // Esconder campo de busca e mostrar selecionado
+    const searchEl = document.getElementById('comandaClienteSearch');
+    const resultsEl = document.getElementById('comandaClienteResults');
+    const selEl    = document.getElementById('comandaClienteSelecionado');
+    const nomeEl   = document.getElementById('comandaClienteNomeSel');
 
-            if (searchEl) searchEl.style.display = 'none';
-            if (resultsEl) resultsEl.style.display = 'none';
-            if (selEl) selEl.style.display = 'flex';
-            if (nomeEl) nomeEl.textContent = clientName;
-        }
+    if (searchEl) searchEl.style.display = 'none';
+    if (resultsEl) resultsEl.style.display = 'none';
+    if (selEl) selEl.style.display = 'flex';
+    if (nomeEl) nomeEl.textContent = clientName;
+}
 
-        function limparClienteComanda() {
-            _cmd.clientId = null;
-            _cmd.clientName = '';
+function limparClienteComanda() {
+    _cmd.clientId   = null;
+    _cmd.clientName = '';
 
-            const searchEl = document.getElementById('comandaClienteSearch');
-            const resultsEl = document.getElementById('comandaClienteResults');
-            const selEl = document.getElementById('comandaClienteSelecionado');
+    const searchEl  = document.getElementById('comandaClienteSearch');
+    const resultsEl = document.getElementById('comandaClienteResults');
+    const selEl     = document.getElementById('comandaClienteSelecionado');
 
-            if (searchEl) { searchEl.style.display = ''; searchEl.value = ''; }
-            if (resultsEl) resultsEl.style.display = 'none';
-            if (selEl) selEl.style.display = 'none';
-        }
+    if (searchEl) { searchEl.style.display = ''; searchEl.value = ''; }
+    if (resultsEl) resultsEl.style.display = 'none';
+    if (selEl) selEl.style.display = 'none';
+}
 
-        function _renderizarListaServicosComanda() {
-            const services = JSON.parse(localStorage.getItem('services') || '[]').filter(s => s.ativo !== false);
-            const listEl = document.getElementById('comandaServicosList');
-            if (!listEl) return;
+function _renderizarListaServicosComanda() {
+    const services = JSON.parse(localStorage.getItem('services') || '[]').filter(s => s.ativo !== false);
+    const listEl = document.getElementById('comandaServicosList');
+    if (!listEl) return;
 
-            if (services.length === 0) {
-                listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-muted);">Nenhum serviço cadastrado</div>';
-                return;
-            }
+    if (services.length === 0) {
+        listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-muted);">Nenhum serviço cadastrado</div>';
+        return;
+    }
 
-            listEl.innerHTML = services.map(s => `
+    listEl.innerHTML = services.map(s => `
         <div class="comanda-item-row">
             <div class="comanda-item-nome">${s.name || s.nome}</div>
-            <div class="comanda-item-preco">R$ ${parseFloat(s.price || s.preco || 0).toFixed(2).replace('.', ',')}</div>
-            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('servico','${s.id}','${((s.name || s.nome) || '').replace(/'/g, "\\'")}',${parseFloat(s.price || s.preco || 0)})" title="Adicionar">
+            <div class="comanda-item-preco">R$ ${parseFloat(s.price || s.preco || 0).toFixed(2).replace('.',',')}</div>
+            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('servico','${s.id}','${((s.name || s.nome)||'').replace(/'/g,"\\'")}',${parseFloat(s.price || s.preco || 0)})" title="Adicionar">
                 <i class="fa-solid fa-plus"></i>
             </button>
         </div>
     `).join('');
-        }
+}
 
-        function _renderizarListaProdutosComanda() {
-            const products = JSON.parse(localStorage.getItem('products') || '[]').filter(p => p.ativo !== false);
-            const listEl = document.getElementById('comandaProdutosList');
-            if (!listEl) return;
+function _renderizarListaProdutosComanda() {
+    const products = JSON.parse(localStorage.getItem('products') || '[]').filter(p => p.ativo !== false);
+    const listEl = document.getElementById('comandaProdutosList');
+    if (!listEl) return;
 
-            if (products.length === 0) {
-                listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-muted);">Nenhum produto cadastrado</div>';
-                return;
-            }
+    if (products.length === 0) {
+        listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-muted);">Nenhum produto cadastrado</div>';
+        return;
+    }
 
-            listEl.innerHTML = products.map(p => `
+    listEl.innerHTML = products.map(p => `
         <div class="comanda-item-row">
             <div class="comanda-item-nome">${p.name || p.nome}</div>
-            <div class="comanda-item-preco">R$ ${parseFloat(p.price || p.preco || 0).toFixed(2).replace('.', ',')}</div>
-            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('produto','${p.id}','${((p.name || p.nome) || '').replace(/'/g, "\\'")}',${parseFloat(p.price || p.preco || 0)})" title="Adicionar">
+            <div class="comanda-item-preco">R$ ${parseFloat(p.price || p.preco || 0).toFixed(2).replace('.',',')}</div>
+            <button class="comanda-item-add-btn" onclick="adicionarItemComanda('produto','${p.id}','${((p.name || p.nome)||'').replace(/'/g,"\\'")}',${parseFloat(p.price || p.preco || 0)})" title="Adicionar">
                 <i class="fa-solid fa-plus"></i>
             </button>
         </div>
     `).join('');
-        }
+}
 
-        // Chamar ao iniciar a aplicação
-        document.addEventListener("DOMContentLoaded", function () {
-            carregarConfiguracaoVisual();
-        });
+// Chamar ao iniciar a aplicação
+document.addEventListener("DOMContentLoaded", function() {
+    carregarConfiguracaoVisual();
+});
 
-        function adicionarItemComanda(tipo, id, nome, preco) {
-            _cmd.items.push({ tipo, id, nome, preco: parseFloat(preco) });
-            _atualizarResumoComanda();
-        }
+function adicionarItemComanda(tipo, id, nome, preco) {
+    _cmd.items.push({ tipo, id, nome, preco: parseFloat(preco) });
+    _atualizarResumoComanda();
+}
 
-        function removerItemComanda(index) {
-            _cmd.items.splice(index, 1);
-            _atualizarResumoComanda();
-        }
+function removerItemComanda(index) {
+    _cmd.items.splice(index, 1);
+    _atualizarResumoComanda();
+}
 
-        function _atualizarResumoComanda() {
-            const listEl = document.getElementById('comandaResumoList');
-            const totalEl = document.getElementById('comandaTotalValor');
-            if (!listEl || !totalEl) return;
+function _atualizarResumoComanda() {
+    const listEl  = document.getElementById('comandaResumoList');
+    const totalEl = document.getElementById('comandaTotalValor');
+    if (!listEl || !totalEl) return;
 
-            const total = _cmd.items.reduce((s, i) => s + i.preco, 0);
-            totalEl.textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
+    const total = _cmd.items.reduce((s, i) => s + i.preco, 0);
+    totalEl.textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
 
-            if (_cmd.items.length === 0) {
-                listEl.innerHTML = '<div class="comanda-resumo-vazio"><i class="fa-solid fa-basket-shopping" style="font-size:24px;margin-bottom:8px;"></i><span>Nenhum item adicionado</span></div>';
-                return;
-            }
+    if (_cmd.items.length === 0) {
+        listEl.innerHTML = '<div class="comanda-resumo-vazio"><i class="fa-solid fa-basket-shopping" style="font-size:24px;margin-bottom:8px;"></i><span>Nenhum item adicionado</span></div>';
+        return;
+    }
 
-            listEl.innerHTML = _cmd.items.map((item, idx) => `
+    listEl.innerHTML = _cmd.items.map((item, idx) => `
         <div class="comanda-resumo-item">
             <span class="comanda-resumo-item-nome">${item.tipo === 'servico' ? '✂️' : '📦'} ${item.nome}</span>
-            <span class="comanda-resumo-item-preco">R$ ${item.preco.toFixed(2).replace('.', ',')}</span>
+            <span class="comanda-resumo-item-preco">R$ ${item.preco.toFixed(2).replace('.',',')}</span>
             <button class="comanda-resumo-item-remove" onclick="removerItemComanda(${idx})"><i class="fa-solid fa-xmark"></i></button>
         </div>
     `).join('');
+}
+
+function selecionarPagamento(tipo, btn) {
+    _cmd.pagamento = tipo;
+    document.querySelectorAll('.pagamento-btn').forEach(b => b.classList.remove('ativo'));
+    if (btn) btn.classList.add('ativo');
+}
+
+function _validarComanda() {
+    const barberId = document.getElementById('comandaBarbeiroSelect')?.value;
+    const data     = document.getElementById('comandaData')?.value;
+    const hora     = document.getElementById('comandaHorario')?.value;
+
+    if (!barberId) { exibirToast('Campo obrigatório', 'Selecione um profissional.', 'info'); return null; }
+    if (!data)     { exibirToast('Campo obrigatório', 'Informe a data.', 'info'); return null; }
+    if (!hora)     { exibirToast('Campo obrigatório', 'Informe o horário.', 'info'); return null; }
+    if (_cmd.items.length === 0) { exibirToast('Comanda vazia', 'Adicione pelo menos um serviço ou produto.', 'info'); return null; }
+
+    return { barberId, data, hora };
+}
+
+function salvarAgendamentoComanda() {
+    const valid = _validarComanda();
+    if (!valid) return;
+    const { barberId, data, hora } = valid;
+
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+
+    // Verificar conflito
+    const conflito = bookings.find(b => b.barberId == barberId && b.date === data && b.time === hora);
+    if (conflito) {
+        exibirToast('Horário Ocupado', `${hora} já possui agendamento para este profissional.`, 'info');
+        return;
+    }
+
+    const barbers = JSON.parse(localStorage.getItem('barbers') || '[]');
+    const barber  = barbers.find(b => b.id == barberId);
+
+    const novoAgendamento = {
+        id:         'bk_' + Date.now(),
+        barberId,
+        barberNome: barber ? (barber.name || barber.nome || '') : '',
+        clientId:   _cmd.clientId,
+        clienteNome: _cmd.clientName || 'Avulso',
+        date:       data,
+        time:       hora,
+        servicos:   _cmd.items.filter(i => i.tipo === 'servico'),
+        produtos:   _cmd.items.filter(i => i.tipo === 'produto'),
+        total:      _cmd.items.reduce((s, i) => s + i.preco, 0),
+        status:     'pendente',
+        obs:        document.getElementById('comandaObs')?.value || '',
+        criadoEm:   new Date().toISOString()
+    };
+
+    bookings.push(novoAgendamento);
+    localStorage.setItem('bookings', JSON.stringify(bookings));
+
+    fecharComanda();
+    renderizarAgendaTimeline();
+    exibirToast('Agendamento Salvo! 📅', `${barber?.nome || 'Profissional'} — ${data} às ${hora}`, 'success');
+    if (typeof criarAlertaSistema === 'function') criarAlertaSistema(`Agendamento criado: ${_cmd.clientName || 'Avulso'} com ${barber?.nome} em ${data} às ${hora}`);
+}
+
+function finalizarComanda() {
+    const valid = _validarComanda();
+    if (!valid) return;
+    const { barberId, data, hora } = valid;
+
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const sales    = JSON.parse(localStorage.getItem('sales')    || '[]');
+    const barbers  = JSON.parse(localStorage.getItem('barbers')  || '[]');
+    const barber   = barbers.find(b => b.id == barberId);
+
+    const total = _cmd.items.reduce((s, i) => s + i.preco, 0);
+
+    const novoAgendamento = {
+        id:          'bk_' + Date.now(),
+        barberId,
+        barberNome:  barber ? barber.nome : '',
+        clientId:    _cmd.clientId,
+        clienteNome: _cmd.clientName || 'Avulso',
+        date:        data,
+        time:        hora,
+        servicos:    _cmd.items.filter(i => i.tipo === 'servico'),
+        produtos:    _cmd.items.filter(i => i.tipo === 'produto'),
+        total,
+        status:      'concluido',
+        pagamento:   _cmd.pagamento,
+        obs:         document.getElementById('comandaObs')?.value || '',
+        criadoEm:    new Date().toISOString(),
+        finalizadoEm: new Date().toISOString()
+    };
+
+    const novaVenda = {
+        id:         'vd_' + Date.now(),
+        data:       data,
+        hora:       hora,
+        barberId,
+        barberNome: barber ? (barber.name || barber.nome || '') : '',
+        clienteNome: _cmd.clientName || 'Avulso',
+        itens:      _cmd.items,
+        total,
+        pagamento:  _cmd.pagamento,
+        bookingId:  novoAgendamento.id
+    };
+
+    bookings.push(novoAgendamento);
+    sales.push(novaVenda);
+    localStorage.setItem('bookings', JSON.stringify(bookings));
+    localStorage.setItem('sales',    JSON.stringify(sales));
+
+    // Atualizar fidelidade do cliente
+    if (_cmd.clientId) {
+        const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+        const idx = customers.findIndex(c => c.id == _cmd.clientId);
+        if (idx >= 0) {
+            customers[idx].totalVisitas  = (customers[idx].totalVisitas  || 0) + 1;
+            customers[idx].totalGasto    = (customers[idx].totalGasto    || 0) + total;
+            customers[idx].ultimoServico = new Date().toISOString();
+            localStorage.setItem('customers', JSON.stringify(customers));
         }
+    }
 
-        function selecionarPagamento(tipo, btn) {
-            _cmd.pagamento = tipo;
-            document.querySelectorAll('.pagamento-btn').forEach(b => b.classList.remove('ativo'));
-            if (btn) btn.classList.add('ativo');
+    fecharComanda();
+    renderizarAgendaTimeline();
+
+    const pgLabel = { dinheiro: 'Dinheiro 💵', cartao: 'Cartão 💳', pix: 'PIX ⚡' };
+    exibirToast('Comanda Finalizada! ✅',
+        `R$ ${total.toFixed(2).replace('.',',')} via ${pgLabel[_cmd.pagamento] || _cmd.pagamento}`, 'success');
+    if (typeof criarAlertaSistema === 'function')
+        criarAlertaSistema(`Venda finalizada: ${_cmd.clientName || 'Avulso'} · R$ ${total.toFixed(2)} (${_cmd.pagamento})`);
+}
+
+function verDetalhesComanda(bookingId) {
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const b = bookings.find(bk => bk.id === bookingId);
+    if (!b) return;
+
+    const total = (b.total || 0).toFixed(2).replace('.', ',');
+    const servicos = (b.servicos || []).map(s => s.nome).join(', ') || '—';
+    const produtos  = (b.produtos  || []).map(p => p.nome).join(', ') || '—';
+
+    const msg = `📋 Agendamento\n` +
+        `Cliente: ${b.clienteNome || 'Avulso'}\n` +
+        `Profissional: ${b.barberNome || '—'}\n` +
+        `Data/Hora: ${b.date} às ${b.time}\n` +
+        `Serviços: ${servicos}\n` +
+        `Produtos: ${produtos}\n` +
+        `Total: R$ ${total}\n` +
+        `Status: ${b.status || 'pendente'}\n` +
+        (b.pagamento ? `Pagamento: ${b.pagamento}` : '');
+
+    alert(msg);
+}
+
+// ==========================================================================
+// SISTEMA & BACKUP — EXPORTAR / IMPORTAR / RESETAR
+// ==========================================================================
+
+const BACKUP_KEYS = ['customers','barbers','services','products','bookings','sales','notifications','visualConfig'];
+
+function renderizarSistema() {
+    const lastBackup = localStorage.getItem('lastBackupDate');
+    const infoEl = document.getElementById('backupLastInfo');
+    if (infoEl) {
+        if (lastBackup) {
+            const d = new Date(lastBackup);
+            const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
+            const alerta = dias > 7 ? '⚠️ ' : '✅ ';
+            infoEl.innerHTML = `${alerta}Último backup: ${d.toLocaleDateString('pt-BR')} (${dias === 0 ? 'hoje' : dias + ' dia(s) atrás'})`;
+        } else {
+            infoEl.textContent = '❌ Nenhum backup realizado ainda';
         }
+    }
+}
 
-        function _validarComanda() {
-            const barberId = document.getElementById('comandaBarbeiroSelect')?.value;
-            const data = document.getElementById('comandaData')?.value;
-            const hora = document.getElementById('comandaHorario')?.value;
+function exportarDados() {
+    const dados = {};
+    BACKUP_KEYS.forEach(key => {
+        const val = localStorage.getItem(key);
+        if (val) { try { dados[key] = JSON.parse(val); } catch(e) { dados[key] = val; } }
+    });
 
-            if (!barberId) { exibirToast('Campo obrigatório', 'Selecione um profissional.', 'info'); return null; }
-            if (!data) { exibirToast('Campo obrigatório', 'Informe a data.', 'info'); return null; }
-            if (!hora) { exibirToast('Campo obrigatório', 'Informe o horário.', 'info'); return null; }
-            if (_cmd.items.length === 0) { exibirToast('Comanda vazia', 'Adicione pelo menos um serviço ou produto.', 'info'); return null; }
+    dados._meta = {
+        versao: '1.0',
+        exportadoEm: new Date().toISOString(),
+        app: 'Barbearia Premium',
+        totalClientes: (dados.customers || []).length,
+        totalAgendamentos: (dados.bookings || []).length,
+        totalVendas: (dados.sales || []).length
+    };
 
-            return { barberId, data, hora };
-        }
+    const json = JSON.stringify(dados, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const dataStr = new Date().toISOString().split('T')[0];
+    a.href     = url;
+    a.download = `barbearia_backup_${dataStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-        function salvarAgendamentoComanda() {
-            const valid = _validarComanda();
-            if (!valid) return;
-            const { barberId, data, hora } = valid;
+    localStorage.setItem('lastBackupDate', new Date().toISOString());
+    renderizarSistema();
+    exibirToast('Backup Realizado! 💾', `Arquivo JSON baixado com ${dados._meta.totalClientes} clientes e ${dados._meta.totalAgendamentos} agendamentos.`, 'success');
+    if (typeof criarAlertaSistema === 'function') criarAlertaSistema('Gerente realizou backup completo dos dados do sistema.');
+}
 
-            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+function importarDados(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.json')) {
+        exibirToast('Formato Inválido', 'Selecione um arquivo .json de backup.', 'info');
+        input.value = '';
+        return;
+    }
 
-            // Verificar conflito
-            const conflito = bookings.find(b => b.barberId == barberId && b.date === data && b.time === hora);
-            if (conflito) {
-                exibirToast('Horário Ocupado', `${hora} já possui agendamento para este profissional.`, 'info');
-                return;
-            }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const dados = JSON.parse(e.target.result);
 
-            const barbers = JSON.parse(localStorage.getItem('barbers') || '[]');
-            const barber = barbers.find(b => b.id == barberId);
-
-            const novoAgendamento = {
-                id: 'bk_' + Date.now(),
-                barberId,
-                barberNome: barber ? (barber.name || barber.nome || '') : '',
-                clientId: _cmd.clientId,
-                clienteNome: _cmd.clientName || 'Avulso',
-                date: data,
-                time: hora,
-                servicos: _cmd.items.filter(i => i.tipo === 'servico'),
-                produtos: _cmd.items.filter(i => i.tipo === 'produto'),
-                total: _cmd.items.reduce((s, i) => s + i.preco, 0),
-                status: 'pendente',
-                obs: document.getElementById('comandaObs')?.value || '',
-                criadoEm: new Date().toISOString()
-            };
-
-            bookings.push(novoAgendamento);
-            localStorage.setItem('bookings', JSON.stringify(bookings));
-
-            fecharComanda();
-            renderizarAgendaTimeline();
-            exibirToast('Agendamento Salvo! 📅', `${barber?.nome || 'Profissional'} — ${data} às ${hora}`, 'success');
-            if (typeof criarAlertaSistema === 'function') criarAlertaSistema(`Agendamento criado: ${_cmd.clientName || 'Avulso'} com ${barber?.nome} em ${data} às ${hora}`);
-        }
-
-        function finalizarComanda() {
-            const valid = _validarComanda();
-            if (!valid) return;
-            const { barberId, data, hora } = valid;
-
-            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-            const sales = JSON.parse(localStorage.getItem('sales') || '[]');
-            const barbers = JSON.parse(localStorage.getItem('barbers') || '[]');
-            const barber = barbers.find(b => b.id == barberId);
-
-            const total = _cmd.items.reduce((s, i) => s + i.preco, 0);
-
-            const novoAgendamento = {
-                id: 'bk_' + Date.now(),
-                barberId,
-                barberNome: barber ? barber.nome : '',
-                clientId: _cmd.clientId,
-                clienteNome: _cmd.clientName || 'Avulso',
-                date: data,
-                time: hora,
-                servicos: _cmd.items.filter(i => i.tipo === 'servico'),
-                produtos: _cmd.items.filter(i => i.tipo === 'produto'),
-                total,
-                status: 'concluido',
-                pagamento: _cmd.pagamento,
-                obs: document.getElementById('comandaObs')?.value || '',
-                criadoEm: new Date().toISOString(),
-                finalizadoEm: new Date().toISOString()
-            };
-
-            const novaVenda = {
-                id: 'vd_' + Date.now(),
-                data: data,
-                hora: hora,
-                barberId,
-                barberNome: barber ? (barber.name || barber.nome || '') : '',
-                clienteNome: _cmd.clientName || 'Avulso',
-                itens: _cmd.items,
-                total,
-                pagamento: _cmd.pagamento,
-                bookingId: novoAgendamento.id
-            };
-
-            bookings.push(novoAgendamento);
-            sales.push(novaVenda);
-            localStorage.setItem('bookings', JSON.stringify(bookings));
-            localStorage.setItem('sales', JSON.stringify(sales));
-
-            // Atualizar fidelidade do cliente
-            if (_cmd.clientId) {
-                const customers = JSON.parse(localStorage.getItem('customers') || '[]');
-                const idx = customers.findIndex(c => c.id == _cmd.clientId);
-                if (idx >= 0) {
-                    customers[idx].totalVisitas = (customers[idx].totalVisitas || 0) + 1;
-                    customers[idx].totalGasto = (customers[idx].totalGasto || 0) + total;
-                    customers[idx].ultimoServico = new Date().toISOString();
-                    localStorage.setItem('customers', JSON.stringify(customers));
-                }
-            }
-
-            fecharComanda();
-            renderizarAgendaTimeline();
-
-            const pgLabel = { dinheiro: 'Dinheiro 💵', cartao: 'Cartão 💳', pix: 'PIX ⚡' };
-            exibirToast('Comanda Finalizada! ✅',
-                `R$ ${total.toFixed(2).replace('.', ',')} via ${pgLabel[_cmd.pagamento] || _cmd.pagamento}`, 'success');
-            if (typeof criarAlertaSistema === 'function')
-                criarAlertaSistema(`Venda finalizada: ${_cmd.clientName || 'Avulso'} · R$ ${total.toFixed(2)} (${_cmd.pagamento})`);
-        }
-
-        function verDetalhesComanda(bookingId) {
-            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-            const b = bookings.find(bk => bk.id === bookingId);
-            if (!b) return;
-
-            const total = (b.total || 0).toFixed(2).replace('.', ',');
-            const servicos = (b.servicos || []).map(s => s.nome).join(', ') || '—';
-            const produtos = (b.produtos || []).map(p => p.nome).join(', ') || '—';
-
-            const msg = `📋 Agendamento\n` +
-                `Cliente: ${b.clienteNome || 'Avulso'}\n` +
-                `Profissional: ${b.barberNome || '—'}\n` +
-                `Data/Hora: ${b.date} às ${b.time}\n` +
-                `Serviços: ${servicos}\n` +
-                `Produtos: ${produtos}\n` +
-                `Total: R$ ${total}\n` +
-                `Status: ${b.status || 'pendente'}\n` +
-                (b.pagamento ? `Pagamento: ${b.pagamento}` : '');
-
-            alert(msg);
-        }
-
-        // ==========================================================================
-        // SISTEMA & BACKUP — EXPORTAR / IMPORTAR / RESETAR
-        // ==========================================================================
-
-        const BACKUP_KEYS = ['customers', 'barbers', 'services', 'products', 'bookings', 'sales', 'notifications', 'visualConfig'];
-
-        function renderizarSistema() {
-            const lastBackup = localStorage.getItem('lastBackupDate');
-            const infoEl = document.getElementById('backupLastInfo');
-            if (infoEl) {
-                if (lastBackup) {
-                    const d = new Date(lastBackup);
-                    const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
-                    const alerta = dias > 7 ? '⚠️ ' : '✅ ';
-                    infoEl.innerHTML = `${alerta}Último backup: ${d.toLocaleDateString('pt-BR')} (${dias === 0 ? 'hoje' : dias + ' dia(s) atrás'})`;
-                } else {
-                    infoEl.textContent = '❌ Nenhum backup realizado ainda';
-                }
-            }
-        }
-
-        function exportarDados() {
-            const dados = {};
-            BACKUP_KEYS.forEach(key => {
-                const val = localStorage.getItem(key);
-                if (val) { try { dados[key] = JSON.parse(val); } catch (e) { dados[key] = val; } }
-            });
-
-            dados._meta = {
-                versao: '1.0',
-                exportadoEm: new Date().toISOString(),
-                app: 'Barbearia Premium',
-                totalClientes: (dados.customers || []).length,
-                totalAgendamentos: (dados.bookings || []).length,
-                totalVendas: (dados.sales || []).length
-            };
-
-            const json = JSON.stringify(dados, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const dataStr = new Date().toISOString().split('T')[0];
-            a.href = url;
-            a.download = `barbearia_backup_${dataStr}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            localStorage.setItem('lastBackupDate', new Date().toISOString());
-            renderizarSistema();
-            exibirToast('Backup Realizado! 💾', `Arquivo JSON baixado com ${dados._meta.totalClientes} clientes e ${dados._meta.totalAgendamentos} agendamentos.`, 'success');
-            if (typeof criarAlertaSistema === 'function') criarAlertaSistema('Gerente realizou backup completo dos dados do sistema.');
-        }
-
-        function importarDados(input) {
-            const file = input.files[0];
-            if (!file) return;
-            if (!file.name.endsWith('.json')) {
-                exibirToast('Formato Inválido', 'Selecione um arquivo .json de backup.', 'info');
+            if (!confirm(`⚠️ ATENÇÃO!\n\nEsta ação VAI SUBSTITUIR todos os dados atuais pelos do backup.\n\n` +
+                `Backup de: ${dados._meta?.exportadoEm ? new Date(dados._meta.exportadoEm).toLocaleString('pt-BR') : 'data desconhecida'}\n` +
+                `Clientes: ${(dados.customers||[]).length}\n` +
+                `Agendamentos: ${(dados.bookings||[]).length}\n\nDeseja continuar?`)) {
                 input.value = '';
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                try {
-                    const dados = JSON.parse(e.target.result);
-
-                    if (!confirm(`⚠️ ATENÇÃO!\n\nEsta ação VAI SUBSTITUIR todos os dados atuais pelos do backup.\n\n` +
-                        `Backup de: ${dados._meta?.exportadoEm ? new Date(dados._meta.exportadoEm).toLocaleString('pt-BR') : 'data desconhecida'}\n` +
-                        `Clientes: ${(dados.customers || []).length}\n` +
-                        `Agendamentos: ${(dados.bookings || []).length}\n\nDeseja continuar?`)) {
-                        input.value = '';
-                        return;
-                    }
-
-                    BACKUP_KEYS.forEach(key => {
-                        if (dados[key] !== undefined) {
-                            localStorage.setItem(key, JSON.stringify(dados[key]));
-                        }
-                    });
-
-                    input.value = '';
-                    exibirToast('Dados Restaurados! 🔄', 'Todos os dados foram importados com sucesso. A página será recarregada.', 'success');
-                    if (typeof criarAlertaSistema === 'function') criarAlertaSistema('Gerente importou backup de dados. Sistema restaurado.');
-
-                    setTimeout(() => location.reload(), 2000);
-
-                } catch (err) {
-                    console.error('importarDados:', err);
-                    exibirToast('Arquivo Inválido', 'O arquivo selecionado não é um backup válido.', 'info');
-                    input.value = '';
+            BACKUP_KEYS.forEach(key => {
+                if (dados[key] !== undefined) {
+                    localStorage.setItem(key, JSON.stringify(dados[key]));
                 }
-            };
-            reader.readAsText(file);
+            });
+
+            input.value = '';
+            exibirToast('Dados Restaurados! 🔄', 'Todos os dados foram importados com sucesso. A página será recarregada.', 'success');
+            if (typeof criarAlertaSistema === 'function') criarAlertaSistema('Gerente importou backup de dados. Sistema restaurado.');
+
+            setTimeout(() => location.reload(), 2000);
+
+        } catch(err) {
+            console.error('importarDados:', err);
+            exibirToast('Arquivo Inválido', 'O arquivo selecionado não é um backup válido.', 'info');
+            input.value = '';
         }
+    };
+    reader.readAsText(file);
+}
 
-        function resetarTodosDados() {
-            if (!confirm('⚠️ ATENÇÃO MÁXIMA!\n\nTodos os dados serão APAGADOS permanentemente:\n• Clientes\n• Agendamentos\n• Vendas\n• Serviços\n• Produtos\n• Profissionais\n\nEsta ação NÃO pode ser desfeita!\n\nTem certeza absoluta?')) return;
-            if (!confirm('SEGUNDA CONFIRMAÇÃO\n\nTEM ABSOLUTA CERTEZA?\nTodos os dados serão perdidos.')) return;
+function resetarTodosDados() {
+    if (!confirm('⚠️ ATENÇÃO MÁXIMA!\n\nTodos os dados serão APAGADOS permanentemente:\n• Clientes\n• Agendamentos\n• Vendas\n• Serviços\n• Produtos\n• Profissionais\n\nEsta ação NÃO pode ser desfeita!\n\nTem certeza absoluta?')) return;
+    if (!confirm('SEGUNDA CONFIRMAÇÃO\n\nTEM ABSOLUTA CERTEZA?\nTodos os dados serão perdidos.')) return;
 
-            BACKUP_KEYS.forEach(key => localStorage.removeItem(key));
-            exibirToast('Dados Apagados', 'Todos os dados foram removidos. A página será recarregada.', 'info');
-            setTimeout(() => location.reload(), 1500);
+    BACKUP_KEYS.forEach(key => localStorage.removeItem(key));
+    exibirToast('Dados Apagados', 'Todos os dados foram removidos. A página será recarregada.', 'info');
+    setTimeout(() => location.reload(), 1500);
+}
+
+// Atualizar aplicarIdentidadeVisual para usar o novo elemento da logo
+const _origAplicarIdentidade = typeof aplicarIdentidadeVisual === 'function' ? aplicarIdentidadeVisual : null;
+function aplicarIdentidadeVisual(cfg) {
+    const nome = cfg.nomeBarbearia || 'The Golden Blade';
+    const tag  = cfg.tagline || "Gentleman's Club";
+
+    document.querySelectorAll('.logo-text').forEach(el => el.textContent = nome);
+    document.querySelectorAll('.logo-tag').forEach(el  => el.textContent = tag);
+
+    const loginH2   = document.querySelector('.login-logo h2');
+    const loginSpan = document.querySelector('.login-logo span');
+    if (loginH2)   loginH2.textContent   = nome;
+    if (loginSpan) loginSpan.textContent  = tag;
+
+    const logoIconHeader = document.getElementById('appLogoIcon');
+    const loginIconEl    = document.querySelector('.login-logo-icon');
+
+    if (cfg.logoBase64) {
+        if (logoIconHeader) logoIconHeader.innerHTML = `<img src="${cfg.logoBase64}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        if (loginIconEl)    loginIconEl.innerHTML    = `<img src="${cfg.logoBase64}" alt="Logo" style="width:54px;height:54px;object-fit:cover;border-radius:50%;border:2px solid var(--accent-gold);">`;
+    } else {
+        if (logoIconHeader) logoIconHeader.innerHTML = `<i class="fa-solid fa-scissors"></i>`;
+        if (loginIconEl)    loginIconEl.innerHTML    = `<i class="fa-solid fa-scissors"></i>`;
+    }
+}
+
+// ==========================================================================
+// RECURSOS EXTRAS: FOTO DO BARBEIRO E PLANILHAS INTERATIVAS
+// ==========================================================================
+
+function atualizarAvatarPainelBarbeiro() {
+    if (!currentUser || currentUser.role !== "barbeiro") return;
+
+    const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
+    const currentBarber = barbers.find(b => b.id == currentUser.id);
+
+    const imgEl = document.getElementById("barbeiroPainelAvatar");
+    const iconEl = document.getElementById("barbeiroPainelAvatarIcon");
+
+    if (currentBarber && (currentBarber.avatar || currentBarber.foto)) {
+        const fotoSrc = currentBarber.avatar || currentBarber.foto;
+        if (imgEl) {
+            imgEl.src = fotoSrc;
+            imgEl.style.display = "block";
         }
+        if (iconEl) iconEl.style.display = "none";
+    } else {
+        if (imgEl) {
+            imgEl.src = "";
+            imgEl.style.display = "none";
+        }
+        if (iconEl) iconEl.style.display = "flex";
+    }
+}
 
-        // Atualizar aplicarIdentidadeVisual para usar o novo elemento da logo
-        const _origAplicarIdentidade = typeof aplicarIdentidadeVisual === 'function' ? aplicarIdentidadeVisual : null;
-        function aplicarIdentidadeVisual(cfg) {
-            const nome = cfg.nomeBarbearia || 'The Golden Blade';
-            const tag = cfg.tagline || "Gentleman's Club";
+function uploadFotoBarbeiro(input) {
+    const file = input.files[0];
+    if (!file) return;
 
-            document.querySelectorAll('.logo-text').forEach(el => el.textContent = nome);
-            document.querySelectorAll('.logo-tag').forEach(el => el.textContent = tag);
+    if (file.size > 1024 * 1024) {
+        exibirToast("Arquivo muito grande ⚠️", "A foto de perfil deve ter no máximo 1MB.", "info");
+        input.value = "";
+        return;
+    }
 
-            const loginH2 = document.querySelector('.login-logo h2');
-            const loginSpan = document.querySelector('.login-logo span');
-            if (loginH2) loginH2.textContent = nome;
-            if (loginSpan) loginSpan.textContent = tag;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64Src = e.target.result;
 
-            const logoIconHeader = document.getElementById('appLogoIcon');
-            const loginIconEl = document.querySelector('.login-logo-icon');
+        const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
+        const idx = barbers.findIndex(b => b.id == currentUser.id);
 
-            if (cfg.logoBase64) {
-                if (logoIconHeader) logoIconHeader.innerHTML = `<img src="${cfg.logoBase64}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-                if (loginIconEl) loginIconEl.innerHTML = `<img src="${cfg.logoBase64}" alt="Logo" style="width:54px;height:54px;object-fit:cover;border-radius:50%;border:2px solid var(--accent-gold);">`;
-            } else {
-                if (logoIconHeader) logoIconHeader.innerHTML = `<i class="fa-solid fa-scissors"></i>`;
-                if (loginIconEl) loginIconEl.innerHTML = `<i class="fa-solid fa-scissors"></i>`;
+        if (idx !== -1) {
+            // Atualizar foto no banco local
+            barbers[idx].avatar = base64Src;
+            barbers[idx].foto = base64Src;
+            localStorage.setItem("barbers", JSON.stringify(barbers));
+
+            // Atualizar sessão e UI
+            currentUser.avatar = base64Src;
+            sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+            
+            atualizarAvatarPainelBarbeiro();
+            
+            // Re-renderizar a timeline para atualizar a foto da agenda
+            if (typeof renderizarAgendaTimeline === "function") {
+                renderizarAgendaTimeline();
             }
+
+            exibirToast("Foto Atualizada! 📸", "Sua foto de perfil foi alterada com sucesso.", "success");
+            criarAlertaSistema(`Perfil: Barbeiro "${currentUser.name}" atualizou sua foto de perfil.`);
+        }
+        input.value = "";
+    };
+    reader.readAsDataURL(file);
+}
+
+function removerFotoBarbeiro() {
+    if (!currentUser || currentUser.role !== "barbeiro") return;
+
+    if (!confirm("Deseja realmente remover sua foto de perfil?")) return;
+
+    const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
+    const idx = barbers.findIndex(b => b.id == currentUser.id);
+
+    if (idx !== -1) {
+        // Resetar para as fotos padrão se existirem ou remover
+        barbers[idx].avatar = `assets/barber_${currentUser.id}.png`;
+        barbers[idx].foto = `assets/barber_${currentUser.id}.png`;
+        localStorage.setItem("barbers", JSON.stringify(barbers));
+
+        currentUser.avatar = null;
+        sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+
+        atualizarAvatarPainelBarbeiro();
+
+        if (typeof renderizarAgendaTimeline === "function") {
+            renderizarAgendaTimeline();
         }
 
-        // ==========================================================================
-        // RECURSOS EXTRAS: FOTO DO BARBEIRO E PLANILHAS INTERATIVAS
-        // ==========================================================================
+        exibirToast("Foto Removida 📸", "Sua foto foi redefinida para o padrão.", "info");
+        criarAlertaSistema(`Perfil: Barbeiro "${currentUser.name}" removeu sua foto de perfil.`);
+    }
+}
 
-        function atualizarAvatarPainelBarbeiro() {
-            if (!currentUser || currentUser.role !== "barbeiro") return;
+// LÓGICA DAS PLANILHAS DETALHADAS DO DASHBOARD GERENTE
+function abrirPlanilhaDashboard(tipo) {
+    const modal = document.getElementById("modalPlanilhaFaturamento");
+    const tituloEl = document.getElementById("modalPlanilhaTitulo");
+    const descEl = document.getElementById("modalPlanilhaDesc");
+    const headEl = document.getElementById("modalPlanilhaHead");
+    const bodyEl = document.getElementById("modalPlanilhaBody");
 
-            const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-            const currentBarber = barbers.find(b => b.id == currentUser.id);
+    if (!modal || !tituloEl || !headEl || !bodyEl) return;
 
-            const imgEl = document.getElementById("barbeiroPainelAvatar");
-            const iconEl = document.getElementById("barbeiroPainelAvatarIcon");
+    // Obter dados locais
+    const bookings = JSON.parse(localStorage.getItem("bookings")) || [];
+    const sales = JSON.parse(localStorage.getItem("sales")) || [];
+    const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
 
-            if (currentBarber && (currentBarber.avatar || currentBarber.foto)) {
-                const fotoSrc = currentBarber.avatar || currentBarber.foto;
-                if (imgEl) {
-                    imgEl.src = fotoSrc;
-                    imgEl.style.display = "block";
-                }
-                if (iconEl) iconEl.style.display = "none";
-            } else {
-                if (imgEl) {
-                    imgEl.src = "";
-                    imgEl.style.display = "none";
-                }
-                if (iconEl) iconEl.style.display = "flex";
-            }
-        }
+    let headHtml = "";
+    let bodyHtml = "";
+    let totalBruto = 0;
 
-        function uploadFotoBarbeiro(input) {
-            const file = input.files[0];
-            if (!file) return;
-
-            if (file.size > 1024 * 1024) {
-                exibirToast("Arquivo muito grande ⚠️", "A foto de perfil deve ter no máximo 1MB.", "info");
-                input.value = "";
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const base64Src = e.target.result;
-
-                const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-                const idx = barbers.findIndex(b => b.id == currentUser.id);
-
-                if (idx !== -1) {
-                    // Atualizar foto no banco local
-                    barbers[idx].avatar = base64Src;
-                    barbers[idx].foto = base64Src;
-                    localStorage.setItem("barbers", JSON.stringify(barbers));
-
-                    // Atualizar sessão e UI
-                    currentUser.avatar = base64Src;
-                    sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
-
-                    atualizarAvatarPainelBarbeiro();
-
-                    // Re-renderizar a timeline para atualizar a foto da agenda
-                    if (typeof renderizarAgendaTimeline === "function") {
-                        renderizarAgendaTimeline();
-                    }
-
-                    exibirToast("Foto Atualizada! 📸", "Sua foto de perfil foi alterada com sucesso.", "success");
-                    criarAlertaSistema(`Perfil: Barbeiro "${currentUser.name}" atualizou sua foto de perfil.`);
-                }
-                input.value = "";
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function removerFotoBarbeiro() {
-            if (!currentUser || currentUser.role !== "barbeiro") return;
-
-            if (!confirm("Deseja realmente remover sua foto de perfil?")) return;
-
-            const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-            const idx = barbers.findIndex(b => b.id == currentUser.id);
-
-            if (idx !== -1) {
-                // Resetar para as fotos padrão se existirem ou remover
-                barbers[idx].avatar = `assets/barber_${currentUser.id}.png`;
-                barbers[idx].foto = `assets/barber_${currentUser.id}.png`;
-                localStorage.setItem("barbers", JSON.stringify(barbers));
-
-                currentUser.avatar = null;
-                sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
-
-                atualizarAvatarPainelBarbeiro();
-
-                if (typeof renderizarAgendaTimeline === "function") {
-                    renderizarAgendaTimeline();
-                }
-
-                exibirToast("Foto Removida 📸", "Sua foto foi redefinida para o padrão.", "info");
-                criarAlertaSistema(`Perfil: Barbeiro "${currentUser.name}" removeu sua foto de perfil.`);
-            }
-        }
-
-        // LÓGICA DAS PLANILHAS DETALHADAS DO DASHBOARD GERENTE
-        function abrirPlanilhaDashboard(tipo) {
-            const modal = document.getElementById("modalPlanilhaFaturamento");
-            const tituloEl = document.getElementById("modalPlanilhaTitulo");
-            const descEl = document.getElementById("modalPlanilhaDesc");
-            const headEl = document.getElementById("modalPlanilhaHead");
-            const bodyEl = document.getElementById("modalPlanilhaBody");
-
-            if (!modal || !tituloEl || !headEl || !bodyEl) return;
-
-            // Obter dados locais
-            const bookings = JSON.parse(localStorage.getItem("bookings")) || [];
-            const sales = JSON.parse(localStorage.getItem("sales")) || [];
-            const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-
-            let headHtml = "";
-            let bodyHtml = "";
-            let totalBruto = 0;
-
-            if (tipo === "faturamento") {
-                tituloEl.textContent = "Planilha de Faturamento Bruto Geral";
-                descEl.textContent = "Exibindo todas as comandas finalizadas (serviços) e vendas avulsas de produtos.";
-
-                headHtml = `
+    if (tipo === "faturamento") {
+        tituloEl.textContent = "Planilha de Faturamento Bruto Geral";
+        descEl.textContent = "Exibindo todas as comandas finalizadas (serviços) e vendas avulsas de produtos.";
+        
+        headHtml = `
             <tr>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Cliente</th>
@@ -4243,60 +4236,60 @@ function resetarConfiguracaoVisual() {
             </tr>
         `;
 
-                // Filtrar vendas de produtos e comandas finalizadas
-                const faturamentoItens = [];
-
-                sales.forEach(s => {
-                    const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
-
-                    if (s.itens && s.itens.length > 0) {
-                        // Venda via timeline
-                        s.itens.forEach(item => {
-                            faturamentoItens.push({
-                                date: dataFmt,
-                                client: s.clienteNome || "Avulso",
-                                barber: s.barberNome || "—",
-                                item: item.nome,
-                                tipo: item.tipo === "servico" ? "✂️ Serviço" : "🧴 Produto",
-                                pag: s.pagamento || "—",
-                                price: parseFloat(item.preco || 0)
-                            });
-                        });
-                    } else {
-                        // Venda mock histórica
-                        faturamentoItens.push({
-                            date: dataFmt,
-                            client: s.client || "Avulso",
-                            barber: barbers.find(b => b.id == s.barberId)?.name || "—",
-                            item: s.name,
-                            tipo: s.type === "service" ? "✂️ Serviço" : "🧴 Produto",
-                            pag: s.pagamento || "Dinheiro",
-                            price: parseFloat(s.price || 0)
-                        });
-                    }
-                });
-
-                // Filtrar comandas da timeline que já constam como concluídas mas não estão listadas nas vendas
-                bookings.filter(b => b.status === "concluido" && !sales.some(s => s.bookingId === b.id)).forEach(b => {
-                    const dataFmt = b.date ? b.date.split("-").reverse().join("/") : "—";
-                    const servNome = b.servicos && b.servicos.length > 0 ? b.servicos[0].nome : b.serviceName || "Serviço";
+        // Filtrar vendas de produtos e comandas finalizadas
+        const faturamentoItens = [];
+        
+        sales.forEach(s => {
+            const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
+            
+            if (s.itens && s.itens.length > 0) {
+                // Venda via timeline
+                s.itens.forEach(item => {
                     faturamentoItens.push({
                         date: dataFmt,
-                        client: b.clienteNome || "Avulso",
-                        barber: b.barberNome || "—",
-                        item: servNome,
-                        tipo: "✂️ Serviço",
-                        pag: b.pagamento || "—",
-                        price: parseFloat(b.price || b.total || 0)
+                        client: s.clienteNome || "Avulso",
+                        barber: s.barberNome || "—",
+                        item: item.nome,
+                        tipo: item.tipo === "servico" ? "✂️ Serviço" : "🧴 Produto",
+                        pag: s.pagamento || "—",
+                        price: parseFloat(item.preco || 0)
                     });
                 });
+            } else {
+                // Venda mock histórica
+                faturamentoItens.push({
+                    date: dataFmt,
+                    client: s.client || "Avulso",
+                    barber: barbers.find(b => b.id == s.barberId)?.name || "—",
+                    item: s.name,
+                    tipo: s.type === "service" ? "✂️ Serviço" : "🧴 Produto",
+                    pag: s.pagamento || "Dinheiro",
+                    price: parseFloat(s.price || 0)
+                });
+            }
+        });
 
-                // Ordenar por data mais recente
-                faturamentoItens.sort((a, b) => b.date.localeCompare(a.date));
+        // Filtrar comandas da timeline que já constam como concluídas mas não estão listadas nas vendas
+        bookings.filter(b => b.status === "concluido" && !sales.some(s => s.bookingId === b.id)).forEach(b => {
+            const dataFmt = b.date ? b.date.split("-").reverse().join("/") : "—";
+            const servNome = b.servicos && b.servicos.length > 0 ? b.servicos[0].nome : b.serviceName || "Serviço";
+            faturamentoItens.push({
+                date: dataFmt,
+                client: b.clienteNome || "Avulso",
+                barber: b.barberNome || "—",
+                item: servNome,
+                tipo: "✂️ Serviço",
+                pag: b.pagamento || "—",
+                price: parseFloat(b.price || b.total || 0)
+            });
+        });
 
-                faturamentoItens.forEach(item => {
-                    totalBruto += item.price;
-                    bodyHtml += `
+        // Ordenar por data mais recente
+        faturamentoItens.sort((a,b) => b.date.localeCompare(a.date));
+
+        faturamentoItens.forEach(item => {
+            totalBruto += item.price;
+            bodyHtml += `
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
                     <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${item.date}</td>
                     <td style="padding:10px 12px;font-size:13px;font-weight:600;">${item.client}</td>
@@ -4307,20 +4300,20 @@ function resetarConfiguracaoVisual() {
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
                 </tr>
             `;
-                });
+        });
 
-                bodyHtml += `
+        bodyHtml += `
             <tr style="background:rgba(197,160,40,0.06);font-weight:700;border-top:2px solid rgba(255,255,255,0.1);">
                 <td colspan="6" style="padding:12px;font-size:14px;color:var(--accent-gold);">TOTAL DE FATURAMENTO</td>
                 <td style="padding:12px;font-size:14px;text-align:right;color:var(--accent-gold);">R$ ${totalBruto.toFixed(2).replace('.', ',')}</td>
             </tr>
         `;
 
-            } else if (tipo === "lucro") {
-                tituloEl.textContent = "Planilha de Lucratividade Líquida da Barbearia";
-                descEl.textContent = "Faturamento Bruto deduzido das comissões operacionais pagas aos barbeiros.";
+    } else if (tipo === "lucro") {
+        tituloEl.textContent = "Planilha de Lucratividade Líquida da Barbearia";
+        descEl.textContent = "Faturamento Bruto deduzido das comissões operacionais pagas aos barbeiros.";
 
-                headHtml = `
+        headHtml = `
             <tr>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Profissional</th>
@@ -4332,63 +4325,63 @@ function resetarConfiguracaoVisual() {
             </tr>
         `;
 
-                let totalComissao = 0;
-                let totalLucro = 0;
+        let totalComissao = 0;
+        let totalLucro = 0;
 
-                sales.forEach(s => {
-                    const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
-                    const barber = barbers.find(b => b.id == s.barberId) || { name: "Avulso", commission: 0 };
-                    const commPct = barber.commission || 50;
+        sales.forEach(s => {
+            const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
+            const barber = barbers.find(b => b.id == s.barberId) || { name: "Avulso", commission: 0 };
+            const commPct = barber.commission || 50;
 
-                    if (s.itens && s.itens.length > 0) {
-                        s.itens.forEach(item => {
-                            const price = parseFloat(item.preco || 0);
-                            // Comissões pagas apenas em serviços (produtos possuem regras de repasse diferentes, calculamos proporcional)
-                            const isServ = item.tipo === "servico";
-                            const commPaid = isServ ? (price * (commPct / 100)) : 0;
-                            const profit = price - commPaid;
+            if (s.itens && s.itens.length > 0) {
+                s.itens.forEach(item => {
+                    const price = parseFloat(item.preco || 0);
+                    // Comissões pagas apenas em serviços (produtos possuem regras de repasse diferentes, calculamos proporcional)
+                    const isServ = item.tipo === "servico";
+                    const commPaid = isServ ? (price * (commPct / 100)) : 0;
+                    const profit = price - commPaid;
 
-                            totalBruto += price;
-                            totalComissao += commPaid;
-                            totalLucro += profit;
+                    totalBruto += price;
+                    totalComissao += commPaid;
+                    totalLucro += profit;
 
-                            bodyHtml += `
+                    bodyHtml += `
                         <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
                             <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
                             <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
-                            <td style="padding:10px 12px;font-size:13px;">${item.nome} ${!isServ ? '<small style="color:var(--text-muted);">(Produto)</small>' : ''}</td>
+                            <td style="padding:10px 12px;font-size:13px;">${item.nome} ${!isServ ? '<small style="color:var(--text-muted);">(Produto)</small>':''}</td>
                             <td style="padding:10px 12px;font-size:13px;text-align:right;">R$ ${price.toFixed(2).replace('.', ',')}</td>
                             <td style="padding:10px 12px;font-size:13px;text-align:center;color:var(--text-muted);">${isServ ? commPct + '%' : '0%'}</td>
                             <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
                             <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-emerald);font-weight:600;">R$ ${profit.toFixed(2).replace('.', ',')}</td>
                         </tr>
                     `;
-                        });
-                    } else {
-                        const price = parseFloat(s.price || 0);
-                        const isServ = s.type === "service";
-                        const commPaid = isServ ? (price * (commPct / 100)) : 0;
-                        const profit = price - commPaid;
+                });
+            } else {
+                const price = parseFloat(s.price || 0);
+                const isServ = s.type === "service";
+                const commPaid = isServ ? (price * (commPct / 100)) : 0;
+                const profit = price - commPaid;
 
-                        totalBruto += price;
-                        totalComissao += commPaid;
-                        totalLucro += profit;
+                totalBruto += price;
+                totalComissao += commPaid;
+                totalLucro += profit;
 
-                        bodyHtml += `
+                bodyHtml += `
                     <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
                         <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
                         <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
-                        <td style="padding:10px 12px;font-size:13px;">${s.name} ${!isServ ? '<small style="color:var(--text-muted);">(Produto)</small>' : ''}</td>
+                        <td style="padding:10px 12px;font-size:13px;">${s.name} ${!isServ ? '<small style="color:var(--text-muted);">(Produto)</small>':''}</td>
                         <td style="padding:10px 12px;font-size:13px;text-align:right;">R$ ${price.toFixed(2).replace('.', ',')}</td>
                         <td style="padding:10px 12px;font-size:13px;text-align:center;color:var(--text-muted);">${isServ ? commPct + '%' : '0%'}</td>
                         <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
                         <td style="padding:10px 12px;font-size:13px;text-align:right;color:var(--accent-emerald);font-weight:600;">R$ ${profit.toFixed(2).replace('.', ',')}</td>
                     </tr>
                 `;
-                    }
-                });
+            }
+        });
 
-                bodyHtml += `
+        bodyHtml += `
             <tr style="background:rgba(255,255,255,0.02);font-weight:700;border-top:2px solid rgba(255,255,255,0.1);">
                 <td colspan="3" style="padding:12px;font-size:13px;color:var(--text-muted);">SOMAS DE COLUNA</td>
                 <td style="padding:12px;font-size:13px;text-align:right;">R$ ${totalBruto.toFixed(2).replace('.', ',')}</td>
@@ -4402,11 +4395,11 @@ function resetarConfiguracaoVisual() {
             </tr>
         `;
 
-            } else if (tipo === "atendimentos") {
-                tituloEl.textContent = "Planilha de Agendamentos e Atendimentos";
-                descEl.textContent = "Lista detalhada de agendamentos (Timeline) ativos e efetuados.";
+    } else if (tipo === "atendimentos") {
+        tituloEl.textContent = "Planilha de Agendamentos e Atendimentos";
+        descEl.textContent = "Lista detalhada de agendamentos (Timeline) ativos e efetuados.";
 
-                headHtml = `
+        headHtml = `
             <tr>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Horário</th>
@@ -4418,16 +4411,16 @@ function resetarConfiguracaoVisual() {
             </tr>
         `;
 
-                bookings.forEach(b => {
-                    const dataFmt = b.date ? b.date.split("-").reverse().join("/") : "—";
-                    const servNome = b.servicos && b.servicos.length > 0 ? b.servicos[0].nome : b.serviceName || "Serviço";
-                    const price = parseFloat(b.price || b.total || 0);
-                    totalBruto += price;
+        bookings.forEach(b => {
+            const dataFmt = b.date ? b.date.split("-").reverse().join("/") : "—";
+            const servNome = b.servicos && b.servicos.length > 0 ? b.servicos[0].nome : b.serviceName || "Serviço";
+            const price = parseFloat(b.price || b.total || 0);
+            totalBruto += price;
 
-                    const statusLabel = b.status === "concluido" ? "Concluído" : "Agendado";
-                    const statusColor = b.status === "concluido" ? "var(--accent-emerald)" : "var(--accent-gold)";
+            const statusLabel = b.status === "concluido" ? "Concluído" : "Agendado";
+            const statusColor = b.status === "concluido" ? "var(--accent-emerald)" : "var(--accent-gold)";
 
-                    bodyHtml += `
+            bodyHtml += `
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
                     <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
                     <td style="padding:10px 12px;font-size:13px;">${b.time || "—"}</td>
@@ -4438,20 +4431,20 @@ function resetarConfiguracaoVisual() {
                     <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;">R$ ${price.toFixed(2).replace('.', ',')}</td>
                 </tr>
             `;
-                });
+        });
 
-                bodyHtml += `
+        bodyHtml += `
             <tr style="background:rgba(197,160,40,0.06);font-weight:700;border-top:2px solid rgba(255,255,255,0.1);">
                 <td colspan="6" style="padding:12px;font-size:14px;color:var(--accent-gold);">VALOR TOTAL EM ATENDIMENTOS</td>
                 <td style="padding:12px;font-size:14px;text-align:right;color:var(--accent-gold);">R$ ${totalBruto.toFixed(2).replace('.', ',')}</td>
             </tr>
         `;
 
-            } else if (tipo === "comissoes") {
-                tituloEl.textContent = "Planilha de Comissões e Repasses aos Barbeiros";
-                descEl.textContent = "Auditoria de todas as taxas e valores repassados aos profissionais por serviço prestado.";
+    } else if (tipo === "comissoes") {
+        tituloEl.textContent = "Planilha de Comissões e Repasses aos Barbeiros";
+        descEl.textContent = "Auditoria de todas as taxas e valores repassados aos profissionais por serviço prestado.";
 
-                headHtml = `
+        headHtml = `
             <tr>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Data</th>
                 <th style="padding:12px;text-align:left;border-bottom:2px solid rgba(255,255,255,0.1);">Profissional</th>
@@ -4463,24 +4456,24 @@ function resetarConfiguracaoVisual() {
             </tr>
         `;
 
-                let totalComissoesPagas = 0;
+        let totalComissoesPagas = 0;
 
-                sales.forEach(s => {
-                    const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
-                    const barber = barbers.find(b => b.id == s.barberId) || { name: "Avulso", commission: 50 };
-                    const commPct = barber.commission || 50;
+        sales.forEach(s => {
+            const dataFmt = s.date ? s.date.split("-").reverse().join("/") : "—";
+            const barber = barbers.find(b => b.id == s.barberId) || { name: "Avulso", commission: 50 };
+            const commPct = barber.commission || 50;
 
-                    if (s.itens && s.itens.length > 0) {
-                        s.itens.forEach(item => {
-                            const price = parseFloat(item.preco || 0);
-                            const isServ = item.tipo === "servico";
-                            const commPaid = isServ ? (price * (commPct / 100)) : 0;
+            if (s.itens && s.itens.length > 0) {
+                s.itens.forEach(item => {
+                    const price = parseFloat(item.preco || 0);
+                    const isServ = item.tipo === "servico";
+                    const commPaid = isServ ? (price * (commPct / 100)) : 0;
 
-                            if (commPaid > 0) {
-                                totalBruto += price;
-                                totalComissoesPagas += commPaid;
+                    if (commPaid > 0) {
+                        totalBruto += price;
+                        totalComissoesPagas += commPaid;
 
-                                bodyHtml += `
+                        bodyHtml += `
                             <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
                                 <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
                                 <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
@@ -4491,18 +4484,18 @@ function resetarConfiguracaoVisual() {
                                 <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
                             </tr>
                         `;
-                            }
-                        });
-                    } else {
-                        const price = parseFloat(s.price || 0);
-                        const isServ = s.type === "service";
-                        const commPaid = isServ ? (price * (commPct / 100)) : 0;
+                    }
+                });
+            } else {
+                const price = parseFloat(s.price || 0);
+                const isServ = s.type === "service";
+                const commPaid = isServ ? (price * (commPct / 100)) : 0;
 
-                        if (commPaid > 0) {
-                            totalBruto += price;
-                            totalComissoesPagas += commPaid;
+                if (commPaid > 0) {
+                    totalBruto += price;
+                    totalComissoesPagas += commPaid;
 
-                            bodyHtml += `
+                    bodyHtml += `
                         <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
                             <td style="padding:10px 12px;font-size:13px;color:var(--text-muted);">${dataFmt}</td>
                             <td style="padding:10px 12px;font-size:13px;font-weight:600;">${barber.name}</td>
@@ -4513,107 +4506,107 @@ function resetarConfiguracaoVisual() {
                             <td style="padding:10px 12px;font-size:13px;text-align:right;font-weight:700;color:var(--accent-danger);">R$ ${commPaid.toFixed(2).replace('.', ',')}</td>
                         </tr>
                     `;
-                        }
-                    }
-                });
+                }
+            }
+        });
 
-                bodyHtml += `
+        bodyHtml += `
             <tr style="background:rgba(239,68,68,0.06);font-weight:800;border-top:2px solid rgba(255,255,255,0.1);">
                 <td colspan="6" style="padding:12px;font-size:14px;color:var(--accent-danger);">TOTAL DE COMISSÕES A REPASSAR</td>
                 <td style="padding:12px;font-size:14px;text-align:right;color:var(--accent-danger);">R$ ${totalComissoesPagas.toFixed(2).replace('.', ',')}</td>
             </tr>
         `;
+    }
+
+    // Atualizar HTML e abrir modal
+    headEl.innerHTML = headHtml;
+    bodyEl.innerHTML = bodyHtml;
+    modal.classList.add("active");
+}
+
+function fecharModalPlanilha() {
+    const modal = document.getElementById("modalPlanilhaFaturamento");
+    if (modal) modal.classList.remove("active");
+}
+
+// ==========================================================================
+// SAAS PLATFORM - CONTROLLER FUNCTIONS
+// ==========================================================================
+
+function trocarAbaDesenvolvedor(abaId, btn) {
+    const abas = document.querySelectorAll("#portalDesenvolvedor .tab-content");
+    abas.forEach(aba => aba.classList.remove("active"));
+    const target = document.getElementById(abaId);
+    if (target) target.classList.add("active");
+
+    const botoes = document.querySelectorAll("#portalDesenvolvedor .nav-item");
+    botoes.forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+
+    if (abaId === "abaDevDashboard") {
+        renderizarDevDashboard();
+    } else if (abaId === "abaDevTenants") {
+        renderizarDevTenants();
+    } else if (abaId === "abaDevPlans") {
+        renderizarDevPlans();
+    }
+}
+
+function renderizarDevDashboard() {
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+
+    let totalTenants = tenants.length;
+    let totalTrial = tenants.filter(t => t.status === "trial").length;
+    let totalExpirados = tenants.filter(t => t.status === "expired").length;
+    let faturamentoSaaS = 0;
+
+    tenants.forEach(t => {
+        if (t.status === "active") {
+            const plan = plans.find(p => p.id === t.planId);
+            if (plan) {
+                faturamentoSaaS += parseFloat(plan.price);
             }
+        }
+    });
 
-            // Atualizar HTML e abrir modal
-            headEl.innerHTML = headHtml;
-            bodyEl.innerHTML = bodyHtml;
-            modal.classList.add("active");
+    const fatEl = document.getElementById("devFaturamentoSaaS");
+    const totEl = document.getElementById("devTotalBarbearias");
+    const triEl = document.getElementById("devTotalTrial");
+    const expEl = document.getElementById("devTotalExpirados");
+
+    if (fatEl) fatEl.textContent = "R$ " + faturamentoSaaS.toFixed(2).replace(".", ",");
+    if (totEl) totEl.textContent = totalTenants;
+    if (triEl) triEl.textContent = totalTrial;
+    if (expEl) expEl.textContent = totalExpirados;
+}
+
+function renderizarDevTenants() {
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const tbody = document.getElementById("devTenantsTableBody");
+    if (!tbody) return;
+
+    if (tenants.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">Nenhuma barbearia cadastrada.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = tenants.map(t => {
+        const plan = plans.find(p => p.id === t.planId) || { name: "Sem Plano" };
+        const expTime = t.status === "trial" ? t.trialExpires : t.planExpires;
+        const expDate = expTime ? new Date(expTime).toLocaleDateString("pt-BR") : "—";
+        
+        let statusBadge = "";
+        if (t.status === "active") {
+            statusBadge = `<span style="background:rgba(16,185,129,0.1); color:var(--accent-emerald); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-check-circle"></i> Ativo</span>`;
+        } else if (t.status === "trial") {
+            statusBadge = `<span style="background:rgba(245,158,11,0.1); color:var(--accent-gold); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-flask"></i> Trial</span>`;
+        } else {
+            statusBadge = `<span style="background:rgba(239,68,68,0.1); color:var(--accent-danger); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-ban"></i> Expirado</span>`;
         }
 
-        function fecharModalPlanilha() {
-            const modal = document.getElementById("modalPlanilhaFaturamento");
-            if (modal) modal.classList.remove("active");
-        }
-
-        // ==========================================================================
-        // SAAS PLATFORM - CONTROLLER FUNCTIONS
-        // ==========================================================================
-
-        function trocarAbaDesenvolvedor(abaId, btn) {
-            const abas = document.querySelectorAll("#portalDesenvolvedor .tab-content");
-            abas.forEach(aba => aba.classList.remove("active"));
-            const target = document.getElementById(abaId);
-            if (target) target.classList.add("active");
-
-            const botoes = document.querySelectorAll("#portalDesenvolvedor .nav-item");
-            botoes.forEach(b => b.classList.remove("active"));
-            if (btn) btn.classList.add("active");
-
-            if (abaId === "abaDevDashboard") {
-                renderizarDevDashboard();
-            } else if (abaId === "abaDevTenants") {
-                renderizarDevTenants();
-            } else if (abaId === "abaDevPlans") {
-                renderizarDevPlans();
-            }
-        }
-
-        function renderizarDevDashboard() {
-            const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-            const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-
-            let totalTenants = tenants.length;
-            let totalTrial = tenants.filter(t => t.status === "trial").length;
-            let totalExpirados = tenants.filter(t => t.status === "expired").length;
-            let faturamentoSaaS = 0;
-
-            tenants.forEach(t => {
-                if (t.status === "active") {
-                    const plan = plans.find(p => p.id === t.planId);
-                    if (plan) {
-                        faturamentoSaaS += parseFloat(plan.price);
-                    }
-                }
-            });
-
-            const fatEl = document.getElementById("devFaturamentoSaaS");
-            const totEl = document.getElementById("devTotalBarbearias");
-            const triEl = document.getElementById("devTotalTrial");
-            const expEl = document.getElementById("devTotalExpirados");
-
-            if (fatEl) fatEl.textContent = "R$ " + faturamentoSaaS.toFixed(2).replace(".", ",");
-            if (totEl) totEl.textContent = totalTenants;
-            if (triEl) triEl.textContent = totalTrial;
-            if (expEl) expEl.textContent = totalExpirados;
-        }
-
-        function renderizarDevTenants() {
-            const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-            const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-            const tbody = document.getElementById("devTenantsTableBody");
-            if (!tbody) return;
-
-            if (tenants.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">Nenhuma barbearia cadastrada.</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = tenants.map(t => {
-                const plan = plans.find(p => p.id === t.planId) || { name: "Sem Plano" };
-                const expTime = t.status === "trial" ? t.trialExpires : t.planExpires;
-                const expDate = expTime ? new Date(expTime).toLocaleDateString("pt-BR") : "—";
-
-                let statusBadge = "";
-                if (t.status === "active") {
-                    statusBadge = `<span style="background:rgba(16,185,129,0.1); color:var(--accent-emerald); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-check-circle"></i> Ativo</span>`;
-                } else if (t.status === "trial") {
-                    statusBadge = `<span style="background:rgba(245,158,11,0.1); color:var(--accent-gold); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-flask"></i> Trial</span>`;
-                } else {
-                    statusBadge = `<span style="background:rgba(239,68,68,0.1); color:var(--accent-danger); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;"><i class="fa-solid fa-ban"></i> Expirado</span>`;
-                }
-
-                return `
+        return `
             <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
                 <td style="padding:12px; font-weight:600; color:var(--text-primary);">${t.name}</td>
                 <td style="padding:12px; font-size:13px; color:var(--text-secondary);">${t.ownerEmail}</td>
@@ -4630,75 +4623,75 @@ function resetarConfiguracaoVisual() {
                 </td>
             </tr>
         `;
-            }).join("");
-        }
+    }).join("");
+}
 
-        function alterarStatusTenant(tenantId, novoStatus, diasExtra) {
-            const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-            const idx = tenants.findIndex(t => t.id === tenantId);
-            if (idx === -1) return;
+function alterarStatusTenant(tenantId, novoStatus, diasExtra) {
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const idx = tenants.findIndex(t => t.id === tenantId);
+    if (idx === -1) return;
 
-            tenants[idx].status = novoStatus;
-            const addMs = diasExtra * 24 * 60 * 60 * 1000;
-            if (novoStatus === "trial") {
-                tenants[idx].trialExpires = Date.now() + addMs;
-            } else {
-                const baseTime = tenants[idx].planExpires && tenants[idx].planExpires > Date.now()
-                    ? tenants[idx].planExpires
-                    : Date.now();
-                tenants[idx].planExpires = baseTime + addMs;
-            }
+    tenants[idx].status = novoStatus;
+    const addMs = diasExtra * 24 * 60 * 60 * 1000;
+    if (novoStatus === "trial") {
+        tenants[idx].trialExpires = Date.now() + addMs;
+    } else {
+        const baseTime = tenants[idx].planExpires && tenants[idx].planExpires > Date.now() 
+            ? tenants[idx].planExpires 
+            : Date.now();
+        tenants[idx].planExpires = baseTime + addMs;
+    }
 
-            _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
-            exibirToast("Inquilino Atualizado! ⚡", `Barbearia '${tenants[idx].name}' alterada para ${novoStatus} (+${diasExtra} dias).`, "success");
-            renderizarDevTenants();
-            renderizarDevDashboard();
-        }
+    _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+    exibirToast("Inquilino Atualizado! ⚡", `Barbearia '${tenants[idx].name}' alterada para ${novoStatus} (+${diasExtra} dias).`, "success");
+    renderizarDevTenants();
+    renderizarDevDashboard();
+}
 
-        function excluirTenant(tenantId) {
-            if (tenantId === "t_default") {
-                exibirToast("Ação Impedida ⚠️", "Não é permitido excluir o inquilino principal do sistema.", "info");
-                return;
-            }
-            if (!confirm("⚠️ ATENÇÃO!\n\nVocê vai excluir todos os dados desta barbearia permanentemente do LocalStorage.\n\nDeseja continuar?")) {
-                return;
-            }
+function excluirTenant(tenantId) {
+    if (tenantId === "t_default") {
+        exibirToast("Ação Impedida ⚠️", "Não é permitido excluir o inquilino principal do sistema.", "info");
+        return;
+    }
+    if (!confirm("⚠️ ATENÇÃO!\n\nVocê vai excluir todos os dados desta barbearia permanentemente do LocalStorage.\n\nDeseja continuar?")) {
+        return;
+    }
 
-            const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-            const filtered = tenants.filter(t => t.id !== tenantId);
-            _origSetItem.call(localStorage, "tenants", JSON.stringify(filtered));
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const filtered = tenants.filter(t => t.id !== tenantId);
+    _origSetItem.call(localStorage, "tenants", JSON.stringify(filtered));
 
-            // Remover todos os dados relacionados deste tenant no LocalStorage
-            const multitenantKeys = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
-            multitenantKeys.forEach(key => {
-                const val = _origGetItem.call(localStorage, key);
-                if (val) {
-                    try {
-                        const data = JSON.parse(val);
-                        if (Array.isArray(data)) {
-                            const cleanData = data.filter(item => item.tenantId !== tenantId);
-                            _origSetItem.call(localStorage, key, JSON.stringify(cleanData));
-                        }
-                    } catch (e) { }
+    // Remover todos os dados relacionados deste tenant no LocalStorage
+    const multitenantKeys = ["customers", "barbers", "services", "products", "bookings", "sales", "notifications", "visualConfig"];
+    multitenantKeys.forEach(key => {
+        const val = _origGetItem.call(localStorage, key);
+        if (val) {
+            try {
+                const data = JSON.parse(val);
+                if (Array.isArray(data)) {
+                    const cleanData = data.filter(item => item.tenantId !== tenantId);
+                    _origSetItem.call(localStorage, key, JSON.stringify(cleanData));
                 }
-            });
-
-            exibirToast("Barbearia Removida", "Todos os registros do inquilino foram eliminados.", "success");
-            renderizarDevTenants();
-            renderizarDevDashboard();
+            } catch(e) {}
         }
+    });
 
-        function renderizarDevPlans() {
-            const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-            const tbody = document.getElementById("devPlansTableBody");
-            if (!tbody) return;
+    exibirToast("Barbearia Removida", "Todos os registros do inquilino foram eliminados.", "success");
+    renderizarDevTenants();
+    renderizarDevDashboard();
+}
 
-            if (plans.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Nenhum plano cadastrado.</td></tr>`;
-                return;
-            }
+function renderizarDevPlans() {
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const tbody = document.getElementById("devPlansTableBody");
+    if (!tbody) return;
 
-            tbody.innerHTML = plans.map(p => `
+    if (plans.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">Nenhum plano cadastrado.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = plans.map(p => `
         <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
             <td style="padding:12px; font-weight:600; color:var(--text-primary);">${p.name}</td>
             <td style="padding:12px; font-size:13px; color:var(--accent-emerald); font-weight:700;">R$ ${parseFloat(p.price).toFixed(2).replace(".", ",")}</td>
@@ -4711,340 +4704,385 @@ function resetarConfiguracaoVisual() {
             </td>
         </tr>
     `).join("");
+}
+
+function abrirModalPlanoForm(planoId) {
+    const modal = document.getElementById("modalDevPlanoForm");
+    const form = document.getElementById("devPlanoForm");
+    const titulo = document.getElementById("modalDevPlanoTitulo");
+
+    if (!modal || !form || !titulo) return;
+
+    form.reset();
+    document.getElementById("formPlanoId").value = "";
+
+    if (planoId) {
+        titulo.textContent = "Editar Plano SaaS";
+        const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+        const plan = plans.find(p => p.id === planoId);
+        if (plan) {
+            document.getElementById("formPlanoId").value = plan.id;
+            document.getElementById("formPlanoNome").value = plan.name;
+            document.getElementById("formPlanoPreco").value = plan.price;
+            document.getElementById("formPlanoDuracao").value = plan.durationDays;
         }
+    } else {
+        titulo.textContent = "Adicionar Novo Plano";
+        document.getElementById("formPlanoDuracao").value = "30";
+    }
 
-        function abrirModalPlanoForm(planoId) {
-            const modal = document.getElementById("modalDevPlanoForm");
-            const form = document.getElementById("devPlanoForm");
-            const titulo = document.getElementById("modalDevPlanoTitulo");
+    modal.classList.add("active");
+}
 
-            if (!modal || !form || !titulo) return;
+function fecharModalPlanoForm() {
+    const modal = document.getElementById("modalDevPlanoForm");
+    if (modal) modal.classList.remove("active");
+}
 
-            form.reset();
-            document.getElementById("formPlanoId").value = "";
+function salvarPlanoForm(event) {
+    event.preventDefault();
+    const id = document.getElementById("formPlanoId").value;
+    const nome = document.getElementById("formPlanoNome").value.trim();
+    const preco = parseFloat(document.getElementById("formPlanoPreco").value);
+    const duracao = parseInt(document.getElementById("formPlanoDuracao").value);
 
-            if (planoId) {
-                titulo.textContent = "Editar Plano SaaS";
-                const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-                const plan = plans.find(p => p.id === planoId);
-                if (plan) {
-                    document.getElementById("formPlanoId").value = plan.id;
-                    document.getElementById("formPlanoNome").value = plan.name;
-                    document.getElementById("formPlanoPreco").value = plan.price;
-                    document.getElementById("formPlanoDuracao").value = plan.durationDays;
-                }
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+
+    if (id) {
+        const idx = plans.findIndex(p => p.id === id);
+        if (idx !== -1) {
+            plans[idx].name = nome;
+            plans[idx].price = preco;
+            plans[idx].durationDays = duracao;
+        }
+    } else {
+        const novoId = "plan_" + Date.now();
+        plans.push({ id: novoId, name: nome, price: preco, durationDays: duracao });
+    }
+
+    _origSetItem.call(localStorage, "plans", JSON.stringify(plans));
+    fecharModalPlanoForm();
+    renderizarDevPlans();
+    exibirToast("Plano Gravado! 🏷️", `Plano '${nome}' salvo com sucesso.`, "success");
+}
+
+function excluirPlano(planoId) {
+    if (planoId === "plan_bronze" || planoId === "plan_prata" || planoId === "plan_gold") {
+        exibirToast("Ação Impedida ⚠️", "Planos base do sistema não podem ser excluídos.", "info");
+        return;
+    }
+    if (!confirm("Deseja realmente remover este plano do sistema?")) return;
+
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const filtered = plans.filter(p => p.id !== planoId);
+    _origSetItem.call(localStorage, "plans", JSON.stringify(filtered));
+
+    exibirToast("Plano Removido", "O plano foi excluído com sucesso.", "success");
+    renderizarDevPlans();
+}
+
+function mostrarCadastroTenant() {
+    document.getElementById("painelLogin").classList.remove("active");
+    const painelTenant = document.getElementById("painelCadastroTenant");
+    if (painelTenant) painelTenant.classList.add("active");
+}
+
+function registrarNovaBarbeariaForm(event) {
+    event.preventDefault();
+    const nome = document.getElementById("tenantNome").value.trim();
+    const email = document.getElementById("tenantEmail").value.trim().toLowerCase();
+    const senha = document.getElementById("tenantSenha").value;
+    const telefone = document.getElementById("tenantTelefone").value.trim();
+
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    if (tenants.some(t => t.ownerEmail.toLowerCase() === email)) {
+        exibirToast("E-mail já registrado", "Este endereço já é proprietário de uma barbearia cadastrada.", "info");
+        return;
+    }
+
+    const tenantId = "t_" + Date.now();
+    const novoTenant = {
+        id: tenantId,
+        name: nome,
+        ownerEmail: email,
+        ownerPassword: senha,
+        phone: telefone,
+        planId: "plan_gold",
+        status: "trial",
+        trialExpires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        planExpires: Date.now() + 30 * 24 * 60 * 60 * 1000
+    };
+
+    tenants.push(novoTenant);
+    _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+
+    // Seeds do novo tenant com isolamento multitenant
+    const sessionMock = { tenantId: tenantId };
+    sessionStorage.setItem("currentSession", JSON.stringify(sessionMock));
+
+    localStorage.setItem("customers", JSON.stringify([
+        { id: "c1_" + tenantId, name: "Cliente VIP Teste", phone: "(11) 90000-0000", email: "cliente@barber.com", password: "1234", tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("barbers", JSON.stringify([
+        { id: "b1_" + tenantId, name: "Barbeiro Inicial", login: "barbeiro", password: "1234", avatar: "assets/barber_1.png", specialty: "Profissional Geral", rating: 5.0, commission: 50, active: true, tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("services", JSON.stringify([
+        { id: "s1_" + tenantId, name: "Corte Simples", price: 40.00, duration: 30, description: "Corte clássico padrão.", tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("products", JSON.stringify([
+        { id: "p1_" + tenantId, name: "Pomada Modeladora", price: 30.00, description: "Fixadora média.", tenantId: tenantId }
+    ]));
+
+    localStorage.setItem("bookings", JSON.stringify([]));
+    localStorage.setItem("sales", JSON.stringify([]));
+    localStorage.setItem("notifications", JSON.stringify([
+        { id: "n1_" + tenantId, text: "Sua barbearia foi inicializada! Aproveite os 7 dias grátis.", time: "Agora", unread: true, tenantId: tenantId }
+    ]));
+
+    sessionStorage.removeItem("currentSession");
+
+    currentUser = { role: "gerente", id: "admin", name: nome, tenantId: tenantId };
+    sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+
+    logarNaAplicacao(currentUser);
+    exibirToast("Sucesso! 🚀", `Sua barbearia '${nome}' foi criada com 7 dias de Teste Grátis.`, "success");
+}
+
+// ==========================================================================
+// GERADOR DE PIX VÁLIDO (BR CODE) COM CRC16
+// ==========================================================================
+function generatePixPayload(key, name, city, amount, reference) {
+    function formatField(id, value) {
+        return id + String(value.length).padStart(2, '0') + value;
+    }
+    let payload = "";
+    payload += formatField("00", "01"); // Payload Format Indicator
+    payload += formatField("01", "11"); // Point of Initiation (static)
+    let gui = formatField("00", "br.gov.bcb.pix");
+    let keyField = formatField("01", key);
+    payload += formatField("26", gui + keyField);
+    payload += formatField("52", "0000"); // Merchant Category
+    payload += formatField("53", "986"); // Currency BRL
+    if (amount) payload += formatField("54", amount); // Amount
+    payload += formatField("58", "BR"); // Country
+    payload += formatField("59", name.substring(0, 25)); // Merchant Name
+    payload += formatField("60", city.substring(0, 15)); // Merchant City
+    let ref = formatField("05", reference.substring(0, 25));
+    payload += formatField("62", ref);
+    payload += "6304";
+    let crc = 0xFFFF;
+    for (let i = 0; i < payload.length; i++) {
+        crc ^= payload.charCodeAt(i) << 8;
+        for (let j = 0; j < 8; j++) {
+            if ((crc & 0x8000) !== 0) {
+                crc = (crc << 1) ^ 0x1021;
             } else {
-                titulo.textContent = "Adicionar Novo Plano";
-                document.getElementById("formPlanoDuracao").value = "30";
+                crc = crc << 1;
             }
-
-            modal.classList.add("active");
         }
+        crc &= 0xFFFF;
+    }
+    return payload + crc.toString(16).toUpperCase().padStart(4, '0');
+}
 
-        function fecharModalPlanoForm() {
-            const modal = document.getElementById("modalDevPlanoForm");
-            if (modal) modal.classList.remove("active");
-        }
+function popularCheckoutPlans() {
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const select = document.getElementById("checkoutPlanSelect");
+    if (!select) return;
 
-        function salvarPlanoForm(event) {
-            event.preventDefault();
-            const id = document.getElementById("formPlanoId").value;
-            const nome = document.getElementById("formPlanoNome").value.trim();
-            const preco = parseFloat(document.getElementById("formPlanoPreco").value);
-            const duracao = parseInt(document.getElementById("formPlanoDuracao").value);
-
-            const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-
-            if (id) {
-                const idx = plans.findIndex(p => p.id === id);
-                if (idx !== -1) {
-                    plans[idx].name = nome;
-                    plans[idx].price = preco;
-                    plans[idx].durationDays = duracao;
-                }
-            } else {
-                const novoId = "plan_" + Date.now();
-                plans.push({ id: novoId, name: nome, price: preco, durationDays: duracao });
-            }
-
-            _origSetItem.call(localStorage, "plans", JSON.stringify(plans));
-            fecharModalPlanoForm();
-            renderizarDevPlans();
-            exibirToast("Plano Gravado! 🏷️", `Plano '${nome}' salvo com sucesso.`, "success");
-        }
-
-        function excluirPlano(planoId) {
-            if (planoId === "plan_bronze" || planoId === "plan_prata" || planoId === "plan_gold") {
-                exibirToast("Ação Impedida ⚠️", "Planos base do sistema não podem ser excluídos.", "info");
-                return;
-            }
-            if (!confirm("Deseja realmente remover este plano do sistema?")) return;
-
-            const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-            const filtered = plans.filter(p => p.id !== planoId);
-            _origSetItem.call(localStorage, "plans", JSON.stringify(filtered));
-
-            exibirToast("Plano Removido", "O plano foi excluído com sucesso.", "success");
-            renderizarDevPlans();
-        }
-
-        function mostrarCadastroTenant() {
-            document.getElementById("painelLogin").classList.remove("active");
-            const painelTenant = document.getElementById("painelCadastroTenant");
-            if (painelTenant) painelTenant.classList.add("active");
-        }
-
-        function registrarNovaBarbeariaForm(event) {
-            event.preventDefault();
-            const nome = document.getElementById("tenantNome").value.trim();
-            const email = document.getElementById("tenantEmail").value.trim().toLowerCase();
-            const senha = document.getElementById("tenantSenha").value;
-            const telefone = document.getElementById("tenantTelefone").value.trim();
-
-            const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-            if (tenants.some(t => t.ownerEmail.toLowerCase() === email)) {
-                exibirToast("E-mail já registrado", "Este endereço já é proprietário de uma barbearia cadastrada.", "info");
-                return;
-            }
-
-            const tenantId = "t_" + Date.now();
-            const novoTenant = {
-                id: tenantId,
-                name: nome,
-                ownerEmail: email,
-                ownerPassword: senha,
-                phone: telefone,
-                planId: "plan_gold",
-                status: "trial",
-                trialExpires: Date.now() + 7 * 24 * 60 * 60 * 1000,
-                planExpires: Date.now() + 30 * 24 * 60 * 60 * 1000
-            };
-
-            tenants.push(novoTenant);
-            _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
-
-            // Seeds do novo tenant com isolamento multitenant
-            const sessionMock = { tenantId: tenantId };
-            sessionStorage.setItem("currentSession", JSON.stringify(sessionMock));
-
-            localStorage.setItem("customers", JSON.stringify([
-                { id: "c1_" + tenantId, name: "Cliente VIP Teste", phone: "(11) 90000-0000", email: "cliente@barber.com", password: "1234", tenantId: tenantId }
-            ]));
-
-            localStorage.setItem("barbers", JSON.stringify([
-                { id: "b1_" + tenantId, name: "Barbeiro Inicial", login: "barbeiro", password: "1234", avatar: "assets/barber_1.png", specialty: "Profissional Geral", rating: 5.0, commission: 50, active: true, tenantId: tenantId }
-            ]));
-
-            localStorage.setItem("services", JSON.stringify([
-                { id: "s1_" + tenantId, name: "Corte Simples", price: 40.00, duration: 30, description: "Corte clássico padrão.", tenantId: tenantId }
-            ]));
-
-            localStorage.setItem("products", JSON.stringify([
-                { id: "p1_" + tenantId, name: "Pomada Modeladora", price: 30.00, description: "Fixadora média.", tenantId: tenantId }
-            ]));
-
-            localStorage.setItem("bookings", JSON.stringify([]));
-            localStorage.setItem("sales", JSON.stringify([]));
-            localStorage.setItem("notifications", JSON.stringify([
-                { id: "n1_" + tenantId, text: "Sua barbearia foi inicializada! Aproveite os 7 dias grátis.", time: "Agora", unread: true, tenantId: tenantId }
-            ]));
-
-            sessionStorage.removeItem("currentSession");
-
-            currentUser = { role: "gerente", id: "admin", name: nome, tenantId: tenantId };
-            sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
-
-            logarNaAplicacao(currentUser);
-            exibirToast("Sucesso! 🚀", `Sua barbearia '${nome}' foi criada com 7 dias de Teste Grátis.`, "success");
-        }
-
-        // ==========================================================================
-        // GERADOR DE PIX VÁLIDO (BR CODE) COM CRC16
-        // ==========================================================================
-        function generatePixPayload(key, name, city, amount, reference) {
-            function formatField(id, value) {
-                return id + String(value.length).padStart(2, '0') + value;
-            }
-            let payload = "";
-            payload += formatField("00", "01"); // Payload Format Indicator
-            payload += formatField("01", "11"); // Point of Initiation (static)
-            let gui = formatField("00", "br.gov.bcb.pix");
-            let keyField = formatField("01", key);
-            payload += formatField("26", gui + keyField);
-            payload += formatField("52", "0000"); // Merchant Category
-            payload += formatField("53", "986"); // Currency BRL
-            if (amount) payload += formatField("54", amount); // Amount
-            payload += formatField("58", "BR"); // Country
-            payload += formatField("59", name.substring(0, 25)); // Merchant Name
-            payload += formatField("60", city.substring(0, 15)); // Merchant City
-            let ref = formatField("05", reference.substring(0, 25));
-            payload += formatField("62", ref);
-            payload += "6304";
-            let crc = 0xFFFF;
-            for (let i = 0; i < payload.length; i++) {
-                crc ^= payload.charCodeAt(i) << 8;
-                for (let j = 0; j < 8; j++) {
-                    if ((crc & 0x8000) !== 0) {
-                        crc = (crc << 1) ^ 0x1021;
-                    } else {
-                        crc = crc << 1;
-                    }
-                }
-                crc &= 0xFFFF;
-            }
-            return payload + crc.toString(16).toUpperCase().padStart(4, '0');
-        }
-
-        function popularCheckoutPlans() {
-            const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-            const select = document.getElementById("checkoutPlanSelect");
-            if (!select) return;
-
-            select.innerHTML = plans.map(p => `
+    select.innerHTML = plans.map(p => `
         <option value="${p.id}" data-price="${p.price}">${p.name} — R$ ${p.price.toFixed(2).replace(".", ",")}</option>
     `).join("");
+}
+
+function atualizarPrecoCheckout() {
+    const select = document.getElementById("checkoutPlanSelect");
+    const priceEl = document.getElementById("checkoutPlanPrice");
+    if (!select || !priceEl) return;
+
+    const option = select.options[select.selectedIndex];
+    if (option) {
+        const price = parseFloat(option.getAttribute("data-price"));
+        priceEl.textContent = "R$ " + price.toFixed(2).replace(".", ",");
+        
+        // Gerar PIX Dinâmico e Válido para escanear
+        const amountStr = price.toFixed(2);
+        
+        // Tratar a chave PIX enviada (se for telefone sem +55, adiciona, pois a norma do BC exige)
+        let chavePix = "47988392282";
+        if (chavePix.length === 11 && chavePix.startsWith("479")) {
+            chavePix = "+55" + chavePix; // Para chave de telefone
         }
-
-        function atualizarPrecoCheckout() {
-            const select = document.getElementById("checkoutPlanSelect");
-            const priceEl = document.getElementById("checkoutPlanPrice");
-            if (!select || !priceEl) return;
-
-            const option = select.options[select.selectedIndex];
-            if (option) {
-                const price = parseFloat(option.getAttribute("data-price"));
-                priceEl.textContent = "R$ " + price.toFixed(2).replace(".", ",");
-
-                // Gerar PIX Dinâmico e Válido para escanear
-                const amountStr = price.toFixed(2);
-
-                // Tratar a chave PIX enviada (se for telefone sem +55, adiciona, pois a norma do BC exige)
-                let chavePix = "47988392282";
-                if (chavePix.length === 11 && chavePix.startsWith("479")) {
-                    chavePix = "+55" + chavePix; // Para chave de telefone
-                }
-
-                const validPix = generatePixPayload(chavePix, "Mauri Koop Junior", "Sao Paulo", amountStr, "SaaS");
-
-                // Atualizar QR Code Imagem
-                const qrImg = document.getElementById("pixQrCodeImg");
-                if (qrImg) {
-                    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(validPix)}`;
-                }
-
-                // Atualizar Input Oculto para Cópia
-                const inputCopia = document.getElementById("pixCopiaColaInput");
-                if (inputCopia) {
-                    inputCopia.value = validPix;
-                }
-            }
+        
+        const validPix = generatePixPayload(chavePix, "Mauri Koop Junior", "Sao Paulo", amountStr, "SaaS");
+        
+        // Atualizar QR Code Imagem
+        const qrImg = document.getElementById("pixQrCodeImg");
+        if (qrImg) {
+            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(validPix)}`;
         }
-
-        function copiarPixCheckout() {
-            const input = document.getElementById("pixCopiaColaInput");
-            if (input) {
-                input.select();
-                input.setSelectionRange(0, 99999);
-                try {
-                    navigator.clipboard.writeText(input.value);
-                    exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado para a área de transferência.", "success");
-                } catch (err) {
-                    document.execCommand("copy");
-                    exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado.", "success");
-                }
-            }
+        
+        // Atualizar Input Oculto para Cópia
+        const inputCopia = document.getElementById("pixCopiaColaInput");
+        if (inputCopia) {
+            inputCopia.value = validPix;
         }
+    }
+}
 
-        function abrirPagamentoSaaS() {
-            const lockOverlay = document.getElementById("saasLockOverlay");
-            if (lockOverlay) {
-                lockOverlay.style.display = "flex";
-                popularCheckoutPlans();
-                atualizarPrecoCheckout();
-            }
+function copiarPixCheckout() {
+    const input = document.getElementById("pixCopiaColaInput");
+    if (input) {
+        input.select();
+        input.setSelectionRange(0, 99999);
+        try {
+            navigator.clipboard.writeText(input.value);
+            exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado para a área de transferência.", "success");
+        } catch(err) {
+            document.execCommand("copy");
+            exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado.", "success");
         }
+    }
+}
 
-        function fecharPagamentoSaaS() {
-            const lockOverlay = document.getElementById("saasLockOverlay");
-            if (lockOverlay) {
-                lockOverlay.style.display = "none";
-            }
+function abrirPagamentoSaaS() {
+    const lockOverlay = document.getElementById("saasLockOverlay");
+    if (lockOverlay) {
+        lockOverlay.style.display = "flex";
+        popularCheckoutPlans();
+        atualizarPrecoCheckout();
+    }
+}
+
+function fecharPagamentoSaaS() {
+    const lockOverlay = document.getElementById("saasLockOverlay");
+    if (lockOverlay) {
+        lockOverlay.style.display = "none";
+    }
+}
+
+function simularPagamentoAssinatura() {
+    if (!currentUser || currentUser.role !== "gerente") return;
+
+    const select = document.getElementById("checkoutPlanSelect");
+    if (!select) return;
+
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const planId = select.value;
+    const plan = plans.find(p => p.id === planId) || { durationDays: 30 };
+
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const idx = tenants.findIndex(t => t.id === currentUser.tenantId);
+
+    if (idx !== -1) {
+        tenants[idx].status = "active";
+        tenants[idx].planId = planId;
+        
+        const baseTime = Date.now();
+        tenants[idx].planExpires = baseTime + (plan.durationDays * 24 * 60 * 60 * 1000);
+
+        _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+
+        exibirToast("Pagamento Confirmado! 🎉", "Sua assinatura foi renovada e o acesso foi liberado.", "success");
+
+        setTimeout(() => {
+            logarNaAplicacao(currentUser);
+        }, 1500);
+    }
+}
+
+// ==========================================================================
+// MANAGER COLLABORATOR PHOTO UPLOAD AND DELETE HANDLERS
+// ==========================================================================
+
+function uploadFotoBarbeiroGerente(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+        exibirToast("Arquivo muito grande ⚠️", "A foto do colaborador deve ter no máximo 1MB.", "info");
+        input.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64Src = e.target.result;
+        const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+        const iconPreview = document.getElementById("configBarbeiroFotoIcon");
+        if (imgPreview) {
+            imgPreview.src = base64Src;
+            imgPreview.style.display = "block";
         }
+        if (iconPreview) iconPreview.style.display = "none";
+        exibirToast("Pré-visualização 📸", "Foto carregada. Clique em 'Salvar' para aplicar.", "success");
+    };
+    reader.readAsDataURL(file);
+}
 
-        function simularPagamentoAssinatura() {
-            if (!currentUser || currentUser.role !== "gerente") return;
+function removerFotoBarbeiroGerente() {
+    if (!confirm("Deseja realmente remover a foto deste colaborador?")) return;
+    const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+    const iconPreview = document.getElementById("configBarbeiroFotoIcon");
+    const fileInput = document.getElementById("gerenteUploadBarbeiroFoto");
+    if (imgPreview) {
+        imgPreview.src = "";
+        imgPreview.style.display = "none";
+    }
+    if (iconPreview) iconPreview.style.display = "flex";
+    if (fileInput) fileInput.value = "";
+    exibirToast("Foto Removida 📸", "Clique em 'Salvar' para gravar a remoção.", "info");
+}
 
-            const select = document.getElementById("checkoutPlanSelect");
-            if (!select) return;
+function abrirModalPlanilha() {
+    const modal = document.getElementById("modalPlanilhaFaturamento");
+    if (modal) modal.classList.remove("active");
+}
 
-            const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
-            const planId = select.value;
-            const plan = plans.find(p => p.id === planId) || { durationDays: 30 };
 
-            const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-            const idx = tenants.findIndex(t => t.id === currentUser.tenantId);
+}
+}
 
-            if (idx !== -1) {
-                tenants[idx].status = "active";
-                tenants[idx].planId = planId;
 
-                const baseTime = Date.now();
-                tenants[idx].planExpires = baseTime + (plan.durationDays * 24 * 60 * 60 * 1000);
+function fecharModalPlanilha() {
+    const modal = document.getElementById("modalPlanilhaFaturamento");
+    if (modal) modal.classList.remove("active");
+}
 
-                _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
-
-                exibirToast("Pagamento Confirmado! 🎉", "Sua assinatura foi renovada e o acesso foi liberado.", "success");
-
-                setTimeout(() => {
-                    logarNaAplicacao(currentUser);
-                }, 1500);
-            }
+function copiarPixCheckout() {
+    const input = document.getElementById("pixCopiaColaInput");
+    if (input) {
+        input.select();
+        input.setSelectionRange(0, 99999);
+        try {
+            navigator.clipboard.writeText(input.value);
+            exibirToast("PIX Copiado! ??", "C�digo Copia e Cola copiado para a �rea de transfer�ncia.", "success");
+        } catch(err) {
+            document.execCommand("copy");
+            exibirToast("PIX Copiado! ??", "C�digo Copia e Cola copiado.", "success");
         }
+    }
+}
 
-        // ==========================================================================
-        // MANAGER COLLABORATOR PHOTO UPLOAD AND DELETE HANDLERS
-        // ==========================================================================
+function fecharPagamentoSaaS() {
+    const overlay = document.getElementById("saasLockOverlay");
+    if (overlay) overlay.style.display = "none";
+}
 
-        function uploadFotoBarbeiroGerente(input) {
-            const file = input.files[0];
-            if (!file) return;
+function abrirPagamentoSaaS() {
+    const overlay = document.getElementById("saasLockOverlay");
+    if (overlay) overlay.style.display = "flex";
+}
 
-            if (file.size > 1024 * 1024) {
-                exibirToast("Arquivo muito grande ⚠️", "A foto do colaborador deve ter no máximo 1MB.", "info");
-                input.value = "";
-                return;
-            }
+function fecharModalPlanoForm() {
+    const modal = document.getElementById("modalPlanoForm");
+    if (modal) modal.classList.remove("active");
+}
 
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const base64Src = e.target.result;
-                const imgPreview = document.getElementById("configBarbeiroFotoPreview");
-                const iconPreview = document.getElementById("configBarbeiroFotoIcon");
-                if (imgPreview) {
-                    imgPreview.src = base64Src;
-                    imgPreview.style.display = "block";
-                }
-                if (iconPreview) iconPreview.style.display = "none";
-                exibirToast("Pré-visualização 📸", "Foto carregada. Clique em 'Salvar' para aplicar.", "success");
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function removerFotoBarbeiroGerente() {
-            if (!confirm("Deseja realmente remover a foto deste colaborador?")) return;
-            const imgPreview = document.getElementById("configBarbeiroFotoPreview");
-            const iconPreview = document.getElementById("configBarbeiroFotoIcon");
-            const fileInput = document.getElementById("gerenteUploadBarbeiroFoto");
-            if (imgPreview) {
-                imgPreview.src = "";
-                imgPreview.style.display = "none";
-            }
-            if (iconPreview) iconPreview.style.display = "flex";
-            if (fileInput) fileInput.value = "";
-            exibirToast("Foto Removida 📸", "Clique em 'Salvar' para gravar a remoção.", "info");
-        }
-
-        function abrirModalPlanilha() {
-            const modal = document.getElementById("modalPlanilhaFaturamento");
-            if (modal) modal.classList.add("active");
-        }
+function simularPagamentoAssinatura() {
+    exibirToast("Pagamento Confirmado!", "Obrigado por assinar o plano! Seu acesso foi liberado.", "success");
+    fecharPagamentoSaaS();
+}
