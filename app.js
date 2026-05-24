@@ -3778,6 +3778,8 @@ function _renderizarListaProdutosComanda() {
     `).join('');
 }
 
+}
+
 // Chamar ao iniciar a aplicação
 document.addEventListener("DOMContentLoaded", function() {
     carregarConfiguracaoVisual();
@@ -5033,6 +5035,201 @@ function removerFotoBarbeiroGerente() {
     }
     if (iconPreview) iconPreview.style.display = "flex";
     if (fileInput) fileInput.value = "";
+        { id: "n1_" + tenantId, text: "Sua barbearia foi inicializada! Aproveite os 7 dias grátis.", time: "Agora", unread: true, tenantId: tenantId }
+    ]));
+
+    sessionStorage.removeItem("currentSession");
+
+    currentUser = { role: "gerente", id: "admin", name: nome, tenantId: tenantId };
+    sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
+
+    logarNaAplicacao(currentUser);
+    exibirToast("Sucesso! 🚀", `Sua barbearia '${nome}' foi criada com 7 dias de Teste Grátis.`, "success");
+}
+
+// ==========================================================================
+// GERADOR DE PIX VÁLIDO (BR CODE) COM CRC16
+// ==========================================================================
+function generatePixPayload(key, name, city, amount, reference) {
+    function formatField(id, value) {
+        return id + String(value.length).padStart(2, '0') + value;
+    }
+    let payload = "";
+    payload += formatField("00", "01"); // Payload Format Indicator
+    payload += formatField("01", "11"); // Point of Initiation (static)
+    let gui = formatField("00", "br.gov.bcb.pix");
+    let keyField = formatField("01", key);
+    payload += formatField("26", gui + keyField);
+    payload += formatField("52", "0000"); // Merchant Category
+    payload += formatField("53", "986"); // Currency BRL
+    if (amount) payload += formatField("54", amount); // Amount
+    payload += formatField("58", "BR"); // Country
+    payload += formatField("59", name.substring(0, 25)); // Merchant Name
+    payload += formatField("60", city.substring(0, 15)); // Merchant City
+    let ref = formatField("05", reference.substring(0, 25));
+    payload += formatField("62", ref);
+    payload += "6304";
+    let crc = 0xFFFF;
+    for (let i = 0; i < payload.length; i++) {
+        crc ^= payload.charCodeAt(i) << 8;
+        for (let j = 0; j < 8; j++) {
+            if ((crc & 0x8000) !== 0) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc = crc << 1;
+            }
+        }
+        crc &= 0xFFFF;
+    }
+    return payload + crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function popularCheckoutPlans() {
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const select = document.getElementById("checkoutPlanSelect");
+    if (!select) return;
+
+    select.innerHTML = plans.map(p => `
+        <option value="${p.id}" data-price="${p.price}">${p.name} — R$ ${p.price.toFixed(2).replace(".", ",")}</option>
+    `).join("");
+}
+
+function atualizarPrecoCheckout() {
+    const select = document.getElementById("checkoutPlanSelect");
+    const priceEl = document.getElementById("checkoutPlanPrice");
+    if (!select || !priceEl) return;
+
+    const option = select.options[select.selectedIndex];
+    if (option) {
+        const price = parseFloat(option.getAttribute("data-price"));
+        priceEl.textContent = "R$ " + price.toFixed(2).replace(".", ",");
+        
+        // Gerar PIX Dinâmico e Válido para escanear
+        const amountStr = price.toFixed(2);
+        
+        // Tratar a chave PIX enviada (se for telefone sem +55, adiciona, pois a norma do BC exige)
+        let chavePix = "47988392282";
+        if (chavePix.length === 11 && chavePix.startsWith("479")) {
+            chavePix = "+55" + chavePix; // Para chave de telefone
+        }
+        
+        const validPix = generatePixPayload(chavePix, "Mauri Koop Junior", "Sao Paulo", amountStr, "SaaS");
+        
+        // Atualizar QR Code Imagem
+        const qrImg = document.getElementById("pixQrCodeImg");
+        if (qrImg) {
+            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(validPix)}`;
+        }
+        
+        // Atualizar Input Oculto para Cópia
+        const inputCopia = document.getElementById("pixCopiaColaInput");
+        if (inputCopia) {
+            inputCopia.value = validPix;
+        }
+    }
+}
+
+function copiarPixCheckout() {
+    const input = document.getElementById("pixCopiaColaInput");
+    if (input) {
+        input.select();
+        input.setSelectionRange(0, 99999);
+        try {
+            navigator.clipboard.writeText(input.value);
+            exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado para a área de transferência.", "success");
+        } catch(err) {
+            document.execCommand("copy");
+            exibirToast("PIX Copiado! ⚡", "Código Copia e Cola copiado.", "success");
+        }
+    }
+}
+
+function abrirPagamentoSaaS() {
+    const lockOverlay = document.getElementById("saasLockOverlay");
+    if (lockOverlay) {
+        lockOverlay.style.display = "flex";
+        popularCheckoutPlans();
+        atualizarPrecoCheckout();
+    }
+}
+
+function fecharPagamentoSaaS() {
+    const lockOverlay = document.getElementById("saasLockOverlay");
+    if (lockOverlay) {
+        lockOverlay.style.display = "none";
+    }
+}
+
+function simularPagamentoAssinatura() {
+    if (!currentUser || currentUser.role !== "gerente") return;
+
+    const select = document.getElementById("checkoutPlanSelect");
+    if (!select) return;
+
+    const plans = JSON.parse(_origGetItem.call(localStorage, "plans")) || [];
+    const planId = select.value;
+    const plan = plans.find(p => p.id === planId) || { durationDays: 30 };
+
+    const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
+    const idx = tenants.findIndex(t => t.id === currentUser.tenantId);
+
+    if (idx !== -1) {
+        tenants[idx].status = "active";
+        tenants[idx].planId = planId;
+        
+        const baseTime = Date.now();
+        tenants[idx].planExpires = baseTime + (plan.durationDays * 24 * 60 * 60 * 1000);
+
+        _origSetItem.call(localStorage, "tenants", JSON.stringify(tenants));
+
+        exibirToast("Pagamento Confirmado! 🎉", "Sua assinatura foi renovada e o acesso foi liberado.", "success");
+
+        setTimeout(() => {
+            logarNaAplicacao(currentUser);
+        }, 1500);
+    }
+}
+
+// ==========================================================================
+// MANAGER COLLABORATOR PHOTO UPLOAD AND DELETE HANDLERS
+// ==========================================================================
+
+function uploadFotoBarbeiroGerente(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+        exibirToast("Arquivo muito grande ⚠️", "A foto do colaborador deve ter no máximo 1MB.", "info");
+        input.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64Src = e.target.result;
+        const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+        const iconPreview = document.getElementById("configBarbeiroFotoIcon");
+        if (imgPreview) {
+            imgPreview.src = base64Src;
+            imgPreview.style.display = "block";
+        }
+        if (iconPreview) iconPreview.style.display = "none";
+        exibirToast("Pré-visualização 📸", "Foto carregada. Clique em 'Salvar' para aplicar.", "success");
+    };
+    reader.readAsDataURL(file);
+}
+
+function removerFotoBarbeiroGerente() {
+    if (!confirm("Deseja realmente remover a foto deste colaborador?")) return;
+    const imgPreview = document.getElementById("configBarbeiroFotoPreview");
+    const iconPreview = document.getElementById("configBarbeiroFotoIcon");
+    const fileInput = document.getElementById("gerenteUploadBarbeiroFoto");
+    if (imgPreview) {
+        imgPreview.src = "";
+        imgPreview.style.display = "none";
+    }
+    if (iconPreview) iconPreview.style.display = "flex";
+    if (fileInput) fileInput.value = "";
     exibirToast("Foto Removida 📸", "Clique em 'Salvar' para gravar a remoção.", "info");
 }
 
@@ -5040,6 +5237,3 @@ function abrirModalPlanilha() {
     const modal = document.getElementById("modalPlanilhaFaturamento");
     if (modal) modal.classList.remove("active");
 }
-
-}
-
