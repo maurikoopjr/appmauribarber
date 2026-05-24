@@ -5040,3 +5040,6 @@ function abrirModalPlanilha() {
     const modal = document.getElementById("modalPlanilhaFaturamento");
     if (modal) modal.classList.remove("active");
 }
+
+}
+
