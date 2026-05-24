@@ -2,6 +2,8 @@
    APP.JS - BARBEARIA PREMIUM & GESTÃO (GENTLEMAN'S CLUB)
    ========================================================================== */
 
+let currentUser = null; // Guardará o perfil e dados do usuário logado
+
 // ==========================================================================
 // FIREBASE CONFIGURATION E INICIALIZAÇÃO (COMPAT V8)
 // ==========================================================================
@@ -185,7 +187,6 @@ function iniciarEscutaFirebase() {
 }
 
 // Estado da Sessão Ativa
-let currentUser = null; // Guardará o perfil e dados do usuário logado
 
 // Estado de agendamento temporário
 let tempBooking = {
