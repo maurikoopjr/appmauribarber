@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    APP.JS - BARBEARIA PREMIUM & GESTÃO (GENTLEMAN'S CLUB)
    ========================================================================== */
 
@@ -630,7 +630,7 @@ function registrarNovoCliente(event) {
 function logarNaAplicacao(user) {
     // Esconder Tela de Login, Exibir App
     document.getElementById("loginOverlay").style.display = "none";
-    const allOverlays = document.querySelectorAll('.modal-overlay'); allOverlays.forEach(o => o.style.display = "none");
+    const allOverlays = document.querySelectorAll('.modal-overlay'); allOverlays.forEach(o => { o.classList.remove('active'); o.style.display = ""; });
     document.body.style.overflow = "auto";
     document.getElementById("appMainContainer").style.display = "flex";
 
@@ -1753,7 +1753,7 @@ function trocarAbaGerente(idAbaTarget, elementoBtn) {
     } else if (idAbaTarget === "abaGerenteClientes") {
         renderizarClientes();
     } else if (idAbaTarget === "abaGerenteAgenda") {
-        atualizarAgendaConsolidada();
+        if (typeof renderizarAgendaTimeline === "function") renderizarAgendaTimeline();
         popularFiltroBarbeirosAgenda();
     } else if (idAbaTarget === "abaGerenteAlertas") {
         renderizarAlertas();
@@ -2156,7 +2156,7 @@ function renderizarProfissionais() {
 
 function removerProfissional(barberId) {
     const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-    const barber = barbers.find(b => b.id === barberId);
+    const barber = barbers.find(b => b.id == barberId);
     if (!barber) return;
 
     if (!confirm(`⚠️ Tem certeza que deseja REMOVER o profissional "${barber.name}" do sistema?\n\nEsta ação é permanente e ele não poderá mais fazer login.`)) return;
@@ -2241,7 +2241,7 @@ function salvarNovoProfissional(event) {
 
 function abrirConfigBarbeiro(barberId) {
     const barbers = JSON.parse(localStorage.getItem("barbers")) || [];
-    const barber = barbers.find(b => b.id === barberId);
+    const barber = barbers.find(b => b.id == barberId);
     if (!barber) return;
 
     const ativo = barber.active !== false;
@@ -3427,6 +3427,9 @@ function salvarConfiguracaoVisual() {
         }
     } catch(err) {
         console.error("salvarConfiguracaoVisual:", err);
+    }
+}
+
 function resetarConfiguracaoVisual() {
     if (!confirm("⚠️ Tem certeza que deseja restaurar o visual padrão (Dourado Clássico)?\nTodas as personalizações serão perdidas.")) return;
 
