@@ -486,10 +486,7 @@ async function fazerLogin(event) {
                     console.error("Erro ao migrar usuário pro Auth", e);
                     throw new Error("Falha na migração segura da conta. Contate o suporte.");
                 }
-            } else {
-                console.error("Erro Firebase Auth:", error);
-                throw new Error("Erro de autenticação na nuvem.");
-            }
+            } else { if(!user) { console.error("Erro Firebase Auth:", error); throw new Error("Erro de autenticação na nuvem."); } else { console.warn("Firebase falhou, mas login local prossegue."); } }
         }
 
         // Login finalizado com sucesso
@@ -633,6 +630,8 @@ function registrarNovoCliente(event) {
 function logarNaAplicacao(user) {
     // Esconder Tela de Login, Exibir App
     document.getElementById("loginOverlay").style.display = "none";
+    const allOverlays = document.querySelectorAll(.modal-overlay); allOverlays.forEach(o => o.style.display = "none");
+    document.body.style.overflow = "auto";
     document.getElementById("appMainContainer").style.display = "flex";
 
     // Atualizar Cabeçalho
@@ -5147,3 +5146,4 @@ function copiarLinkTenant() {
         exibirToast("Link Copiado! 🔗", "Envie este link para seus clientes agendarem diretamente com você.", "success");
     });
 }
+
