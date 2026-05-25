@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    APP.JS - BARBEARIA PREMIUM & GESTÃO (GENTLEMAN'S CLUB)
    ========================================================================== */
 
@@ -2287,7 +2287,7 @@ function abrirConfigBarbeiro(barberId) {
     atualizarStatusVisual();
 
     // Calcular e exibir rendimentos deste barbeiro
-    calcularRendimentosModal(barber.id, barber.commission);
+    try { calcularRendimentosModal(barber.id, barber.commission); } catch(e) { console.error('Erro rendimentos:', e); }
 
     document.getElementById("modalBarbeiroConfig").classList.add("active");
 }
@@ -2309,6 +2309,7 @@ function atualizarStatusVisual() {
 }
 
 function calcularRendimentosModal(barberId, commission) {
+    if (!barberId) return;
     const bookings = JSON.parse(localStorage.getItem("bookings")) || [];
     const sales = JSON.parse(localStorage.getItem("sales")) || [];
 
@@ -5059,10 +5060,10 @@ function copiarPixCheckout() {
         input.setSelectionRange(0, 99999);
         try {
             navigator.clipboard.writeText(input.value);
-            exibirToast("PIX Copiado! ??", "C�digo Copia e Cola copiado para a �rea de transfer�ncia.", "success");
+            exibirToast("PIX Copiado! ??", "C�digo Copia e Cola copiado para a �rea de transfer�ncia.", "success");
         } catch(err) {
             document.execCommand("copy");
-            exibirToast("PIX Copiado! ??", "C�digo Copia e Cola copiado.", "success");
+            exibirToast("PIX Copiado! ??", "C�digo Copia e Cola copiado.", "success");
         }
     }
 }
@@ -5085,4 +5086,64 @@ function fecharModalPlanoForm() {
 function simularPagamentoAssinatura() {
     exibirToast("Pagamento Confirmado!", "Obrigado por assinar o plano! Seu acesso foi liberado.", "success");
     fecharPagamentoSaaS();
+}
+
+
+function abrirComandaPorAgendamento(bookingId) {
+    if (!currentUser || currentUser.role === 'cliente') return;
+    const bookings = JSON.parse(localStorage.getItem('bookings')) || [];
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return;
+    
+    if (booking.pagamento === 'concluido') {
+        exibirToast('Comanda Fechada', 'Este agendamento já foi pago.', 'info');
+        return;
+    }
+    
+    abrirComanda();
+    setTimeout(() => {
+        const clienteInput = document.getElementById('comandaBuscaCliente');
+        if (clienteInput) {
+            clienteInput.value = booking.clientName;
+        }
+        
+        adicionarItemComanda('servico', booking.serviceId || 0, booking.service, booking.price);
+        window.currentComandaBookingId = booking.id;
+    }, 100);
+}
+
+const origFinalizarComanda = finalizarComanda;
+window.finalizarComanda = function() {
+    origFinalizarComanda();
+    if (window.currentComandaBookingId) {
+        const bookings = JSON.parse(localStorage.getItem('bookings')) || [];
+        const idx = bookings.findIndex(b => b.id === window.currentComandaBookingId);
+        if (idx !== -1) {
+            bookings[idx].pagamento = 'concluido';
+            localStorage.setItem('bookings', JSON.stringify(bookings));
+            if (typeof renderAgenda === 'function') renderAgenda();
+            window.currentComandaBookingId = null;
+        }
+    }
+};
+
+
+function copiarLinkTenant() {
+    if (!currentUser || !currentUser.tenantId) {
+        exibirToast("Erro", "Você não está vinculado a uma barbearia.", "error");
+        return;
+    }
+    const link = window.location.origin + window.location.pathname + "?barbearia=" + currentUser.tenantId;
+    navigator.clipboard.writeText(link).then(() => {
+        exibirToast("Link Copiado! 🔗", "Envie este link para seus clientes agendarem diretamente com você.", "success");
+    }).catch(err => {
+        // Fallback for older browsers
+        const input = document.createElement("input");
+        input.value = link;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+        exibirToast("Link Copiado! 🔗", "Envie este link para seus clientes agendarem diretamente com você.", "success");
+    });
 }
