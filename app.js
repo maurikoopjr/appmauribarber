@@ -310,9 +310,11 @@ function inicializarLocalStorage() {
         } catch(e) {}
     }
 
-    // 3. Garantir seeds padrão no t_default
-    const sessionMock = { tenantId: "t_default" };
-    sessionStorage.setItem("currentSession", JSON.stringify(sessionMock));
+    // 3. Garantir seeds padrão no t_default apenas se não houver sessão
+    if (!sessionStorage.getItem("currentSession")) {
+        const sessionMock = { tenantId: "t_default" };
+        sessionStorage.setItem("currentSession", JSON.stringify(sessionMock));
+    }
 
     if (!localStorage.getItem("customers")) {
         localStorage.setItem("customers", JSON.stringify(DEFAULT_CUSTOMERS.map(c => ({...c, tenantId: "t_default"}))));
@@ -437,7 +439,7 @@ async function fazerLogin(event) {
         // 2. Verificar Gerentes de Tenants
         if (!user) {
             const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-            const tenant = tenants.find(t => t.ownerEmail.toLowerCase() === loginVal && t.ownerPassword === senhaVal);
+            const tenant = tenants.find(t => t.ownerEmail && t.ownerEmail.toLowerCase() === loginVal && t.ownerPassword === senhaVal);
             if (tenant) user = { role: "gerente", id: "admin", name: tenant.name, tenantId: tenant.id, email: tenant.ownerEmail };
         }
 
@@ -455,7 +457,7 @@ async function fazerLogin(event) {
         // 4. Verificar Clientes (Busca em raw database)
         if (!user) {
             const rawCustomers = JSON.parse(_origGetItem.call(localStorage, "customers")) || [];
-            const customer = rawCustomers.find(c => c.email.toLowerCase() === loginVal && c.password === senhaVal);
+            const customer = rawCustomers.find(c => c.email && c.email.toLowerCase() === loginVal && c.password === senhaVal);
             if (customer) user = { role: "cliente", id: customer.id, name: customer.name, tenantId: customer.tenantId, email: customer.email };
         }
 
@@ -613,7 +615,7 @@ function registrarNovoCliente(event) {
     }
 
     const customers = JSON.parse(localStorage.getItem("customers")) || [];
-    if (customers.some(c => c.email.toLowerCase() === email.toLowerCase())) {
+    if (customers.some(c => c.email && c.email.toLowerCase() === email.toLowerCase())) {
         exibirToast("E-mail já cadastrado", "Este endereço já possui uma conta. Faça login.", "info");
         return;
     }
@@ -724,6 +726,11 @@ function logarNaAplicacao(user) {
         if (portalGerente) portalGerente.style.display = "block";
         const tabsGerente = document.querySelectorAll("#portalGerente .nav-item");
         trocarAbaGerente("abaGerenteDashboard", tabsGerente[0]);
+    }
+
+    // Carregar e aplicar o Tema Visual salvo
+    if (typeof carregarConfiguracaoVisual === "function") {
+        carregarConfiguracaoVisual();
     }
 
     // Iniciar escuta do Firebase Firestore
@@ -1425,7 +1432,7 @@ function salvarClienteForm(event) {
     const customers = JSON.parse(localStorage.getItem("customers")) || [];
 
     // Validar se email já cadastrado
-    if (customers.some(c => c.email.toLowerCase() === email.toLowerCase())) {
+    if (customers.some(c => c.email && c.email.toLowerCase() === email.toLowerCase())) {
         exibirToast("Erro no Cadastro", "Este e-mail já está em uso.", "info");
         return;
     }
@@ -2677,8 +2684,8 @@ function filtrarClientes() {
     const hoje = new Date();
 
     let filtrados = customers.filter(c => {
-        const nomeOk = !filtroNome || c.name.toLowerCase().includes(filtroNome);
-        const telOk = !filtroTel || c.phone.replace(/\D/g, "").includes(filtroTel.replace(/\D/g, "")) || c.phone.toLowerCase().includes(filtroTel);
+        const nomeOk = !filtroNome || (c.name && c.name.toLowerCase().includes(filtroNome));
+        const telOk = !filtroTel || (c.phone && (c.phone.replace(/\D/g, "").includes(filtroTel.replace(/\D/g, "")) || c.phone.toLowerCase().includes(filtroTel)));
 
         let dataOk = true;
         if (filtroData) {
@@ -3866,6 +3873,20 @@ document.addEventListener("DOMContentLoaded", function() {
     } else {
         carregarConfiguracaoVisual();
     }
+
+    // Restaurar sessão se o usuário já estiver logado (F5)
+    const savedSession = sessionStorage.getItem("currentSession");
+    if (savedSession) {
+        try {
+            const user = JSON.parse(savedSession);
+            if (user && user.role) {
+                currentUser = user;
+                logarNaAplicacao(currentUser);
+            }
+        } catch (e) {
+            console.error("Erro ao restaurar sessão:", e);
+        }
+    }
 });
 
 function adicionarItemComanda(tipo, id, nome, preco) {
@@ -4892,7 +4913,7 @@ function registrarNovaBarbeariaForm(event) {
     const telefone = document.getElementById("tenantTelefone").value.trim();
 
     const tenants = JSON.parse(_origGetItem.call(localStorage, "tenants")) || [];
-    if (tenants.some(t => t.ownerEmail.toLowerCase() === email)) {
+    if (tenants.some(t => t.ownerEmail && t.ownerEmail.toLowerCase() === email)) {
         exibirToast("E-mail já registrado", "Este endereço já é proprietário de uma barbearia cadastrada.", "info");
         return;
     }
