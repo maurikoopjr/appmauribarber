@@ -519,6 +519,11 @@ function fazerLogout() {
     currentUser = null;
     sessionStorage.removeItem("currentSession");
 
+    // Resetar tema para o padrão ao deslogar
+    if (typeof carregarConfiguracaoVisual === "function") {
+        carregarConfiguracaoVisual();
+    }
+
     // Desligar listeners do Firebase
     if (typeof firebaseListeners !== "undefined") {
         firebaseListeners.forEach(unsub => unsub());
@@ -1803,8 +1808,7 @@ function trocarAbaGerente(idAbaTarget, elementoBtn) {
     } else if (idAbaTarget === "abaGerenteClientes") {
         renderizarClientes();
     } else if (idAbaTarget === "abaGerenteAgenda") {
-        atualizarAgendaConsolidada();
-        popularFiltroBarbeirosAgenda();
+        renderizarAgendaTimeline();
     } else if (idAbaTarget === "abaGerenteAlertas") {
         renderizarAlertas();
     }
@@ -3027,8 +3031,16 @@ function aplicarIdentidadeVisual(cfg) {
     }
 }
 
+function _getVisualConfigKey() {
+    if (currentUser && currentUser.id) {
+        return "visualConfig_" + currentUser.role + "_" + currentUser.id;
+    }
+    return "visualConfig_default";
+}
+
 function carregarConfiguracaoVisual() {
-    const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
+    const key = _getVisualConfigKey();
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {});
 
     aplicarCSSVariaveis(cfg);
@@ -3036,7 +3048,8 @@ function carregarConfiguracaoVisual() {
 }
 
 function renderizarConfiguracoes() {
-    const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
+    const key = _getVisualConfigKey();
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {});
 
     // Preencher campos
@@ -3107,7 +3120,8 @@ function aplicarTema(temaId) {
     const tema = TEMAS_PREDEFINIDOS.find(t => t.id === temaId);
     if (!tema) return;
 
-    const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
+    const key = _getVisualConfigKey();
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, {
         temaId:       tema.id,
         accentColor:  tema.accentColor,
@@ -3134,7 +3148,7 @@ function aplicarTema(temaId) {
     if (cards[idx]) cards[idx].classList.add("ativo");
 
     // Salvar temporariamente (sem fechar aba)
-    localStorage.setItem("visualConfig", JSON.stringify(cfg));
+    localStorage.setItem(_getVisualConfigKey(), JSON.stringify(cfg));
 
     exibirToast(`Tema Aplicado! ${tema.emoji}`, `${tema.nome} ativo. Clique em Salvar Tudo para confirmar.`, "success");
 }
@@ -3169,7 +3183,8 @@ function aplicarCorPersonalizada() {
     const b = Math.min(255, parseInt(hex.slice(5,7), 16) + 20);
     const hexLight = "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
 
-    const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
+    const key = _getVisualConfigKey();
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, {
         temaId:      "custom",
         accentColor: hex,
@@ -3177,7 +3192,7 @@ function aplicarCorPersonalizada() {
     });
 
     aplicarCSSVariaveis(cfg);
-    localStorage.setItem("visualConfig", JSON.stringify(cfg));
+    localStorage.setItem(key, JSON.stringify(cfg));
 
     // Desmarcar temas predefinidos
     document.querySelectorAll(".tema-card").forEach(el => el.classList.remove("ativo"));
@@ -3427,9 +3442,10 @@ function confirmarCropLogo() {
     const base64 = out.toDataURL("image/png", 0.9);
 
     // Salvar no localStorage
-    const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
+    const key = _getVisualConfigKey();
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, { logoBase64: base64 });
-    localStorage.setItem("visualConfig", JSON.stringify(cfg));
+    localStorage.setItem(key, JSON.stringify(cfg));
 
     // Atualizar preview na aba de configurações
     const iconEl = document.getElementById("logoPreviewIcon");
@@ -3450,9 +3466,10 @@ function removerLogo() {
     if (iconEl) iconEl.style.display = "flex";
     if (fileInput) fileInput.value = "";
 
-    const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
+    const key = _getVisualConfigKey();
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
     const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, { logoBase64: null });
-    localStorage.setItem("visualConfig", JSON.stringify(cfg));
+    localStorage.setItem(key, JSON.stringify(cfg));
 
     aplicarIdentidadeVisual(cfg);
     exibirToast("Logo Removido", "O ícone padrão foi restaurado.", "info");
@@ -3480,7 +3497,8 @@ function salvarConfiguracaoVisual() {
             accentOverride = { accentColor: hexAtual, accentLight: light };
         }
 
-        const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
+        const key = _getVisualConfigKey();
+        const saved = JSON.parse(localStorage.getItem(key) || "null");
         const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, accentOverride, {
             nomeBarbearia: nome,
             tagline:       tag,
@@ -3489,7 +3507,7 @@ function salvarConfiguracaoVisual() {
             horarioFds:    fds
         });
 
-        localStorage.setItem("visualConfig", JSON.stringify(cfg));
+        localStorage.setItem(key, JSON.stringify(cfg));
         aplicarCSSVariaveis(cfg);
         aplicarIdentidadeVisual(cfg);
 
@@ -3502,7 +3520,7 @@ function salvarConfiguracaoVisual() {
 function resetarConfiguracaoVisual() {
     if (!confirm("⚠️ Tem certeza que deseja restaurar o visual padrão (Dourado Clássico)?\nTodas as personalizações serão perdidas.")) return;
 
-    localStorage.removeItem("visualConfig");
+    localStorage.removeItem(_getVisualConfigKey());
     carregarConfiguracaoVisual();
     renderizarConfiguracoes();
 
@@ -4809,11 +4827,15 @@ function renderizarDevPlans() {
         return;
     }
 
-    tbody.innerHTML = plans.map(p => `
+    tbody.innerHTML = plans.map(p => {
+        if (!p) return "";
+        const priceNum = parseFloat(p.price || 0);
+        const priceStr = isNaN(priceNum) ? "0,00" : priceNum.toFixed(2).replace(".", ",");
+        return `
         <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
-            <td style="padding:12px; font-weight:600; color:var(--text-primary);">${p.name}</td>
-            <td style="padding:12px; font-size:13px; color:var(--accent-emerald); font-weight:700;">R$ ${parseFloat(p.price).toFixed(2).replace(".", ",")}</td>
-            <td style="padding:12px; font-size:13px; color:var(--text-secondary);">${p.durationDays} dias</td>
+            <td style="padding:12px; font-weight:600; color:var(--text-primary);">${p.name || "Sem Nome"}</td>
+            <td style="padding:12px; font-size:13px; color:var(--accent-emerald); font-weight:700;">R$ ${priceStr}</td>
+            <td style="padding:12px; font-size:13px; color:var(--text-secondary);">${p.durationDays || 30} dias</td>
             <td style="padding:12px; text-align:right;">
                 <div style="display:flex; justify-content:flex-end; gap:6px;">
                     <button class="primary-btn" onclick="abrirModalPlanoForm('${p.id}')" style="padding:4px 8px; font-size:11px;"><i class="fa-solid fa-edit"></i> Editar</button>
@@ -4821,7 +4843,8 @@ function renderizarDevPlans() {
                 </div>
             </td>
         </tr>
-    `).join("");
+        `;
+    }).join("");
 }
 
 function abrirModalPlanoForm(planoId) {
