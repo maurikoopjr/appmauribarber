@@ -469,27 +469,32 @@ async function fazerLogin(event) {
         
         try {
             await firebase.auth().signInWithEmailAndPassword(fbEmail, senhaVal);
-        } catch (error) {
-            // Se o erro for que o usuário não existe no Firebase, nós o criamos! (Migração Transparente)
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
-                try {
-                    await firebase.auth().createUserWithEmailAndPassword(fbEmail, senhaVal);
-                    // Salvar o mapeamento de Segurança no Banco de Dados para as Regras do Firestore
-                    if (firebase.auth().currentUser) {
-                        await db.collection("users").doc(firebase.auth().currentUser.uid).set({
-                            tenantId: user.tenantId,
-                            role: user.role,
-                            email: fbEmail
-                        });
+            } catch (error) {
+                // Se o erro for que o usuário não existe no Firebase, nós o criamos! (Migração Transparente)
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+                    try {
+                        await firebase.auth().createUserWithEmailAndPassword(fbEmail, senhaVal);
+                        // Salvar o mapeamento de Segurança no Banco de Dados para as Regras do Firestore
+                        if (firebase.auth().currentUser) {
+                            await db.collection("users").doc(firebase.auth().currentUser.uid).set({
+                                tenantId: user.tenantId,
+                                role: user.role,
+                                email: fbEmail
+                            });
+                        }
+                    } catch(e) {
+                        console.error("Erro ao migrar usuário pro Auth", e);
+                        // Não bloquear o login local se a migração Firebase falhar (ex: senha fraca)
+                        console.warn("Acesso mantido via LocalStorage, mas migração Firebase falhou.");
                     }
-                } catch(e) {
-                    console.error("Erro ao migrar usuário pro Auth", e);
-                    throw new Error("Falha na migração segura da conta. Contate o suporte.");
+                } else {
+                    console.error("Erro Firebase Auth:", error);
+                    // Não bloquear o login local se houver outro erro (ex: sem internet, auth desativada)
+                    console.warn("Acesso mantido via LocalStorage. O Firebase Auth está indisponível.");
                 }
-            } else {
-                console.error("Erro Firebase Auth:", error);
-                throw new Error("Erro de autenticação na nuvem.");
             }
+        } catch(fbOverallError) {
+            console.error("Firebase Auth global error, proceeding locally.", fbOverallError);
         }
 
         // Login finalizado com sucesso
