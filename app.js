@@ -486,7 +486,10 @@ async function fazerLogin(event) {
                     console.error("Erro ao migrar usuário pro Auth", e);
                     throw new Error("Falha na migração segura da conta. Contate o suporte.");
                 }
-            } else { if(!user) { console.error("Erro Firebase Auth:", error); throw new Error("Erro de autenticação na nuvem."); } else { console.warn("Firebase falhou, mas login local prossegue."); } }
+            } else {
+                console.error("Erro Firebase Auth:", error);
+                throw new Error("Erro de autenticação na nuvem.");
+            }
         }
 
         // Login finalizado com sucesso
@@ -614,14 +617,18 @@ function registrarNovoCliente(event) {
     }
 
     const novoId = "c_" + Date.now();
+    const urlParams = new URLSearchParams(window.location.search);
+    const tenantIdUrl = urlParams.get('b');
     const novoCliente = { id: novoId, name: nome, phone: telefone, email: email, password: senha };
+    if (tenantIdUrl) novoCliente.tenantId = tenantIdUrl;
+    
     customers.push(novoCliente);
     localStorage.setItem("customers", JSON.stringify(customers));
 
     criarAlertaSistema(`Cadastro: Novo cliente "${nome}" criou uma conta no sistema.`);
 
     // Auto-login imediato
-    currentUser = { role: "cliente", id: novoId, name: nome };
+    currentUser = { role: "cliente", id: novoId, name: nome, tenantId: tenantIdUrl || null };
     sessionStorage.setItem("currentSession", JSON.stringify(currentUser));
     logarNaAplicacao(currentUser);
     exibirToast("Conta Criada! 🎉", `Bem-vindo(a), ${nome}! Seu acesso está ativo.`, "success");
@@ -630,8 +637,6 @@ function registrarNovoCliente(event) {
 function logarNaAplicacao(user) {
     // Esconder Tela de Login, Exibir App
     document.getElementById("loginOverlay").style.display = "none";
-    const allOverlays = document.querySelectorAll('.modal-overlay'); allOverlays.forEach(o => { o.classList.remove('active'); o.style.display = ""; });
-    document.body.style.overflow = "auto";
     document.getElementById("appMainContainer").style.display = "flex";
 
     // Atualizar Cabeçalho
@@ -1449,6 +1454,42 @@ function abrirCadastroRapidoCliente() {
     abrirModalClienteForm();
 }
 
+function abrirModalEditarCliente(id) {
+    const customers = JSON.parse(localStorage.getItem("customers")) || [];
+    const c = customers.find(x => x.id === id);
+    if (!c) return;
+    document.getElementById("editClienteId").value = c.id;
+    document.getElementById("editClienteNome").value = c.name;
+    document.getElementById("editClienteTelefone").value = c.phone;
+    document.getElementById("modalEditarClienteOverlay").classList.add("active");
+}
+
+function fecharModalEditarCliente() {
+    document.getElementById("modalEditarClienteOverlay").classList.remove("active");
+}
+
+function salvarEdicaoCliente(event) {
+    event.preventDefault();
+    const id = document.getElementById("editClienteId").value;
+    const nome = document.getElementById("editClienteNome").value.trim();
+    const telefone = document.getElementById("editClienteTelefone").value.trim();
+
+    const customers = JSON.parse(localStorage.getItem("customers")) || [];
+    const idx = customers.findIndex(x => x.id === id);
+    if (idx !== -1) {
+        customers[idx].name = nome;
+        customers[idx].phone = telefone;
+        localStorage.setItem("customers", JSON.stringify(customers));
+        exibirToast("Sucesso", "Dados do cliente atualizados.", "success");
+        fecharModalEditarCliente();
+        
+        // Se a função renderizarClientes existir, chame ela
+        if (typeof renderizarClientes === 'function') {
+            renderizarClientes();
+        }
+    }
+}
+
 function excluirCliente(customerId) {
     // SEGURANÇA E PREVENÇÃO: Apenas gerente tem direito a exclusão!
     if (currentUser.role !== "gerente") {
@@ -1753,7 +1794,7 @@ function trocarAbaGerente(idAbaTarget, elementoBtn) {
     } else if (idAbaTarget === "abaGerenteClientes") {
         renderizarClientes();
     } else if (idAbaTarget === "abaGerenteAgenda") {
-        if (typeof renderizarAgendaTimeline === "function") renderizarAgendaTimeline();
+        atualizarAgendaConsolidada();
         popularFiltroBarbeirosAgenda();
     } else if (idAbaTarget === "abaGerenteAlertas") {
         renderizarAlertas();
@@ -2286,7 +2327,7 @@ function abrirConfigBarbeiro(barberId) {
     atualizarStatusVisual();
 
     // Calcular e exibir rendimentos deste barbeiro
-    try { calcularRendimentosModal(barber.id, barber.commission); } catch(e) { console.error('Erro rendimentos:', e); }
+    calcularRendimentosModal(barber.id, barber.commission);
 
     document.getElementById("modalBarbeiroConfig").classList.add("active");
 }
@@ -2308,7 +2349,6 @@ function atualizarStatusVisual() {
 }
 
 function calcularRendimentosModal(barberId, commission) {
-    if (!barberId) return;
     const bookings = JSON.parse(localStorage.getItem("bookings")) || [];
     const sales = JSON.parse(localStorage.getItem("sales")) || [];
 
@@ -2693,6 +2733,7 @@ function filtrarClientes() {
                 <td>${c.email}</td>
                 <td>${ultimoServicoBadge}</td>
                 <td style="text-align: right;">
+                    <button class="icon-btn" style="color:var(--accent-gold); margin-right: 8px;" onclick="abrirModalEditarCliente('${c.id}')" title="Editar Cliente"><i class="fa-solid fa-pen"></i></button>
                     <button class="icon-btn delete" onclick="excluirCliente('${c.id}')" title="Excluir Cliente"><i class="fa-solid fa-trash-can"></i></button>
                 </td>
             </tr>
@@ -2766,6 +2807,7 @@ renderizarClientes = function() {
                     <td>${c.email}</td>
                     <td>${ultimoServicoBadge}</td>
                     <td style="text-align: right;">
+                        <button class="icon-btn" style="color:var(--accent-gold); margin-right: 8px;" onclick="abrirModalEditarCliente('${c.id}')" title="Editar Cliente"><i class="fa-solid fa-pen"></i></button>
                         <button class="icon-btn delete" onclick="excluirCliente('${c.id}')" title="Excluir Cliente"><i class="fa-solid fa-trash-can"></i></button>
                     </td>
                 </tr>
@@ -2993,6 +3035,20 @@ function renderizarConfiguracoes() {
     const tagEl  = document.getElementById("configTagline");
     if (nomeEl) nomeEl.value = cfg.nomeBarbearia || "";
     if (tagEl)  tagEl.value  = cfg.tagline || "";
+    
+    // Novos campos
+    const endEl = document.getElementById("configEnderecoBarbearia");
+    const semEl = document.getElementById("configHorarioSemana");
+    const fdsEl = document.getElementById("configHorarioFds");
+    if (endEl) endEl.value = cfg.endereco || "";
+    if (semEl) semEl.value = cfg.horarioSemana || "";
+    if (fdsEl) fdsEl.value = cfg.horarioFds || "";
+
+    const linkEl = document.getElementById("configLinkConvite");
+    if (linkEl) {
+        let baseUrl = window.location.origin + window.location.pathname;
+        linkEl.value = baseUrl + "?b=" + getActiveTenantId();
+    }
 
     // Preview de nome
     previewNomeLogo();
@@ -3397,6 +3453,10 @@ function salvarConfiguracaoVisual() {
     try {
         const nome = (document.getElementById("configNomeBarbearia")?.value || "").trim() || "The Golden Blade";
         const tag  = (document.getElementById("configTagline")?.value  || "").trim() || "Gentleman's Club";
+        
+        const end = (document.getElementById("configEnderecoBarbearia")?.value || "").trim();
+        const sem = (document.getElementById("configHorarioSemana")?.value || "").trim();
+        const fds = (document.getElementById("configHorarioFds")?.value || "").trim();
 
         // Capturar cor diretamente do picker (funciona mesmo sem clicar em "Aplicar Cor")
         const picker = document.getElementById("corPersonalizadaInput");
@@ -3414,7 +3474,10 @@ function salvarConfiguracaoVisual() {
         const saved = JSON.parse(localStorage.getItem("visualConfig") || "null");
         const cfg = Object.assign({}, CONFIG_VISUAL_PADRAO, saved || {}, accentOverride, {
             nomeBarbearia: nome,
-            tagline:       tag
+            tagline:       tag,
+            endereco:      end,
+            horarioSemana: sem,
+            horarioFds:    fds
         });
 
         localStorage.setItem("visualConfig", JSON.stringify(cfg));
@@ -3781,7 +3844,26 @@ function _renderizarListaProdutosComanda() {
 
 // Chamar ao iniciar a aplicação
 document.addEventListener("DOMContentLoaded", function() {
-    carregarConfiguracaoVisual();
+    const urlParams = new URLSearchParams(window.location.search);
+    const b = urlParams.get('b');
+    if (b) {
+        db.collection('barbearias_dados').doc(b).collection('storage').doc('visualConfig').get().then(doc => {
+            if (doc.exists) {
+                const cfgStr = doc.data().payload;
+                if (cfgStr) {
+                    const cfg = JSON.parse(cfgStr);
+                    aplicarCSSVariaveis(cfg);
+                    aplicarIdentidadeVisual(cfg);
+                } else {
+                    carregarConfiguracaoVisual();
+                }
+            } else {
+                carregarConfiguracaoVisual();
+            }
+        }).catch(() => carregarConfiguracaoVisual());
+    } else {
+        carregarConfiguracaoVisual();
+    }
 });
 
 function adicionarItemComanda(tipo, id, nome, preco) {
@@ -4089,6 +4171,19 @@ function aplicarIdentidadeVisual(cfg) {
     const loginSpan = document.querySelector('.login-logo span');
     if (loginH2)   loginH2.textContent   = nome;
     if (loginSpan) loginSpan.textContent  = tag;
+
+    const infoContainer = document.getElementById("loginBarbershopInfo");
+    const addrEl = document.getElementById("loginBarbershopAddress");
+    const hoursEl = document.getElementById("loginBarbershopHours");
+    if (infoContainer && addrEl && hoursEl) {
+        if (cfg.endereco || cfg.horarioSemana) {
+            addrEl.textContent = cfg.endereco || "Endereço não informado";
+            hoursEl.innerHTML = (cfg.horarioSemana || "Semana não informada") + " &bull; " + (cfg.horarioFds || "");
+            infoContainer.style.display = "block";
+        } else {
+            infoContainer.style.display = "none";
+        }
+    }
 
     const logoIconHeader = document.getElementById('appLogoIcon');
     const loginIconEl    = document.querySelector('.login-logo-icon');
@@ -5086,65 +5181,3 @@ function simularPagamentoAssinatura() {
     exibirToast("Pagamento Confirmado!", "Obrigado por assinar o plano! Seu acesso foi liberado.", "success");
     fecharPagamentoSaaS();
 }
-
-
-function abrirComandaPorAgendamento(bookingId) {
-    if (!currentUser || currentUser.role === 'cliente') return;
-    const bookings = JSON.parse(localStorage.getItem('bookings')) || [];
-    const booking = bookings.find(b => b.id === bookingId);
-    if (!booking) return;
-    
-    if (booking.pagamento === 'concluido') {
-        exibirToast('Comanda Fechada', 'Este agendamento já foi pago.', 'info');
-        return;
-    }
-    
-    abrirComanda();
-    setTimeout(() => {
-        const clienteInput = document.getElementById('comandaBuscaCliente');
-        if (clienteInput) {
-            clienteInput.value = booking.clientName;
-        }
-        
-        adicionarItemComanda('servico', booking.serviceId || 0, booking.service, booking.price);
-        window.currentComandaBookingId = booking.id;
-    }, 100);
-}
-
-const origFinalizarComanda = finalizarComanda;
-window.finalizarComanda = function() {
-    origFinalizarComanda();
-    if (window.currentComandaBookingId) {
-        const bookings = JSON.parse(localStorage.getItem('bookings')) || [];
-        const idx = bookings.findIndex(b => b.id === window.currentComandaBookingId);
-        if (idx !== -1) {
-            bookings[idx].pagamento = 'concluido';
-            localStorage.setItem('bookings', JSON.stringify(bookings));
-            if (typeof renderAgenda === 'function') renderAgenda();
-            window.currentComandaBookingId = null;
-        }
-    }
-};
-
-
-function copiarLinkTenant() {
-    if (!currentUser || !currentUser.tenantId) {
-        exibirToast("Erro", "Você não está vinculado a uma barbearia.", "error");
-        return;
-    }
-    const link = window.location.origin + window.location.pathname + "?barbearia=" + currentUser.tenantId;
-    navigator.clipboard.writeText(link).then(() => {
-        exibirToast("Link Copiado! 🔗", "Envie este link para seus clientes agendarem diretamente com você.", "success");
-    }).catch(err => {
-        // Fallback for older browsers
-        const input = document.createElement("input");
-        input.value = link;
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand("copy");
-        document.body.removeChild(input);
-        exibirToast("Link Copiado! 🔗", "Envie este link para seus clientes agendarem diretamente com você.", "success");
-    });
-}
-
-
