@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Golden Blade | Plataforma Barbearia Premium</title>
+    
+    <!-- Meta tags SEO -->
+    <meta name="description" content="Plataforma Completa Multiusuário de Agendamento Premium, Controle de Ganhos, Comissões e Fidelidade - The Golden Blade.">
+    <meta name="keywords" content="barbearia, comissões, agendamento, fidelidade, controle financeiro, barbeiros">
+    
+    <!-- Icones FontAwesome e Estilos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=3.1">
+    <link rel="stylesheet" href="theme_styles.css?v=3.1">
+
+    <!-- Firebase JS SDK (V8 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <!-- ==========================================
+         TELA DE LOGIN PREMIUM (OVERLAY)
+         ========================================== -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-card">
+            <div class="login-logo">
+                <div class="login-logo-icon"><i class="fa-solid fa-scissors"></i></div>
+                <h2 id="loginBarbershopName">The Golden Blade</h2>
+                <span id="loginBarbershopTagline">Gentleman's Club</span>
+                
+                <!-- Informações Públicas (Exibidas se acessado via link exclusivo) -->
+                <div id="loginBarbershopInfo" style="display:none; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 12px; color: var(--text-secondary); text-align: center;">
+                    <div style="margin-bottom: 6px;"><i class="fa-solid fa-location-dot" style="color:var(--accent-gold); margin-right:4px;"></i> <span id="loginBarbershopAddress"></span></div>
+                    <div><i class="fa-regular fa-clock" style="color:var(--accent-gold); margin-right:4px;"></i> <span id="loginBarbershopHours"></span></div>
+                </div>
+            </div>
+
+            <!-- PAINEL 1: ENTRAR -->
+            <div id="painelLogin" class="login-panel active">
+                <form onsubmit="fazerLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="loginEmail">
+                            <i class="fa-solid fa-at" style="color:var(--accent-gold); margin-right:6px; font-size:11px;"></i>E-mail ou Login
+                        </label>
+                        <input type="text" class="form-input" id="loginEmail" placeholder="seu@email.com ou usuario" required autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="loginSenha">
+                            <i class="fa-solid fa-lock" style="color:var(--accent-gold); margin-right:6px; font-size:11px;"></i>Senha
+                        </label>
+                        <div class="login-senha-wrapper">
+                            <input type="password" class="form-input" id="loginSenha" placeholder="••••••••" required autocomplete="current-password">
+                            <button type="button" class="btn-toggle-senha" onclick="toggleSenhaVisivel('loginSenha','iconeLoginSenha')">
+                                <i class="fa-regular fa-eye" id="iconeLoginSenha"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="primary-btn login-btn">
+                        <i class="fa-solid fa-right-to-bracket"></i> Entrar no Club
+                    </button>
+                        <button type="button" class="secondary-btn" style="margin-top:10px; width:100%;" onclick="exibirToast('Recuperação de Senha', 'Entre em contato com o suporte ou administrador para redefinir sua senha.', 'info')">Esqueci minha senha</button>
+                </form>
+
+                <div class="login-divider">OU</div>
+
+                <button class="secondary-btn" style="width: 100%; margin-bottom: 8px;" onclick="mostrarCadastro()">
+                    <i class="fa-solid fa-user-plus"></i> Criar Conta Cliente
+                </button>
+                <button class="secondary-btn" style="width: 100%; border-color: var(--accent-gold); color: var(--accent-gold);" onclick="mostrarCadastroTenant()">
+                    <i class="fa-solid fa-store"></i> Cadastrar Nova Barbearia
+                </button>
+            </div>
+
+            <!-- PAINEL 3: CADASTRO DE TENANT (EMPRESA) -->
+            <div id="painelCadastroTenant" class="login-panel">
+                <div class="login-back-header">
+                    <button type="button" class="btn-voltar-login" onclick="mostrarLogin()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <span class="login-sub-title">Criar Barbearia (Empresa)</span>
+                </div>
+                <form onsubmit="registrarNovaBarbeariaForm(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="tenantNome">Nome da Barbearia</label>
+                        <input type="text" class="form-input" id="tenantNome" required placeholder="Ex: Barbearia Premium Fênix">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tenantEmail">E-mail do Administrador</label>
+                        <input type="email" class="form-input" id="tenantEmail" required placeholder="Ex: gerente@barber.com" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tenantSenha">Senha de Acesso</label>
+                        <input type="password" class="form-input" id="tenantSenha" required placeholder="Mínimo 4 caracteres" minlength="4" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tenantTelefone">Telefone / WhatsApp</label>
+                        <input type="tel" class="form-input" id="tenantTelefone" required placeholder="Ex: (11) 99999-8888">
+                    </div>
+                    <button type="submit" class="primary-btn login-btn" style="margin-top:8px;">
+                        <i class="fa-solid fa-rocket"></i> Criar Barbearia & Iniciar Teste
+                    </button>
+                </form>
+                <div style="text-align:center; margin-top:14px; font-size:12px; color:var(--text-muted);">
+                    <i class="fa-solid fa-circle-info"></i> Seu cadastro iniciará com <strong>7 dias de Teste Grátis</strong> imediato!
+                </div>
+            </div>
+
+            <!-- PAINEL 2: CADASTRO -->
+            <div id="painelCadastro" class="login-panel">
+                <div class="login-back-header">
+                    <button type="button" class="btn-voltar-login" onclick="mostrarLogin()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <span class="login-sub-title">Criar Nova Conta</span>
+                </div>
+                <form onsubmit="registrarNovoCliente(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="regNome">Nome Completo</label>
+                        <input type="text" class="form-input" id="regNome" required placeholder="Ex: Maurício Koop Junior">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regTelefone">Telefone / WhatsApp</label>
+                        <input type="tel" class="form-input" id="regTelefone" required placeholder="Ex: (11) 99999-8888">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regEmail">
+                            E-mail <span style="color:var(--text-muted); font-size:11px;">(será seu login)</span>
+                        </label>
+                        <input type="email" class="form-input" id="regEmail" required placeholder="Ex: voce@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regSenha">Senha</label>
+                        <div class="login-senha-wrapper">
+                            <input type="password" class="form-input" id="regSenha" required placeholder="Mínimo 4 caracteres" minlength="4">
+                            <button type="button" class="btn-toggle-senha" onclick="toggleSenhaVisivel('regSenha','iconeRegSenha')">
+                                <i class="fa-regular fa-eye" id="iconeRegSenha"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regSenhaConfirm">Confirmar Senha</label>
+                        <input type="password" class="form-input" id="regSenhaConfirm" required placeholder="Repita sua senha">
+                    </div>
+                    <button type="submit" class="primary-btn login-btn" style="margin-top:8px;">
+                        <i class="fa-solid fa-user-check"></i> Criar Minha Conta
+                    </button>
+                </form>
+                <div style="text-align:center; margin-top:14px;">
+                    <button type="button" class="btn-link-text" onclick="mostrarLogin()">
+                        <i class="fa-solid fa-arrow-left" style="font-size:11px;"></i> Já tenho conta — Fazer login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- ==========================================
+         CONTAINER PRINCIPAL DO APLICATIVO
+         ========================================== -->
+    <div class="app-container" id="appMainContainer" style="display: none;">
+        
+        <!-- CABEÇALHO PREMIUM COM LOGO CENTRALIZADA -->
+        <header class="app-header">
+            <!-- Logo Centralizada e Visível -->
+            <div class="header-logo-center">
+                <div class="header-logo-icon" id="appLogoIcon">
+                    <i class="fa-solid fa-scissors"></i>
+                </div>
+                <div class="header-logo-texts">
+                    <h1 class="logo-text">The Golden Blade</h1>
+                    <span class="logo-tag">Gentleman's Club</span>
+                </div>
+            </div>
+
+            <!-- Sessão Ativa (direita) -->
+            <div class="session-info">
+                <div class="session-user-details">
+                    <span class="session-user-role" id="sessionUserRole">Carregando...</span>
+                    <span class="session-user-name" id="sessionUserName">Carregando...</span>
+                </div>
+                <button class="btn-logout" id="btnSair" onclick="fazerLogout()" title="Sair da Conta">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- ==========================================
+             PORTAL DO CLIENTE (Agendamento & Fidelidade)
+             ========================================== -->
+        <main id="portalCliente" style="display: none;">
+            
+            <!-- ABA CLIENTE: HOME -->
+            <section id="abaClienteHome" class="tab-content active">
+                <!-- Cartão de Fidelidade Dinâmico -->
+                <div class="fidelity-card">
+                    <div class="fidelity-badge-icon">
+                        <i class="fa-solid fa-award"></i>
+                    </div>
+                    <div class="fidelity-main">
+                        <h2 class="fidelity-title">Fidelidade Gentleman's Club</h2>
+                        <p class="fidelity-desc">Complete 10 serviços na The Golden Blade e ganhe um corte inteiramente grátis!</p>
+                        
+                        <div class="fidelity-progress-container">
+                            <div class="fidelity-progress-lbl">
+                                <span id="fidelityServicesText">Carregando serviços...</span>
+                                <span id="fidelityPercentText">0%</span>
+                            </div>
+                            <div class="fidelity-progress-bar-bg">
+                                <div class="fidelity-progress-bar-fill" id="fidelityProgressBarFill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-banner">
+                    <h2 class="hero-title">Estilo & Tradição<br>para o Homem Moderno</h2>
+                    <p class="hero-subtitle">Um ambiente clássico e luxuoso feito para o seu bem-estar.</p>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-card">
+                        <div class="info-card-icon"><i class="fa-solid fa-location-dot"></i></div>
+                        <div>
+                            <h3 class="info-card-title">Nosso Club</h3>
+                            <p class="info-card-desc">Av. Premium, 1000 - Jardim de Luxo</p>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-card-icon"><i class="fa-solid fa-clock"></i></div>
+                        <div>
+                            <h3 class="info-card-title">Horário de Funcionamento</h3>
+                            <p class="info-card-desc">Segunda a Sábado: 09:00h às 20:00h</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <h2 class="section-title">Serviços em Destaque</h2>
+                <div class="catalog-grid" id="destaquesServicosGrid">
+                    <!-- Gerado Dinamicamente -->
+                </div>
+            </section>
+
+            <!-- ABA CLIENTE: SERVIÇOS & PRODUTOS -->
+            <section id="abaClienteServicos" class="tab-content">
+                <h2 class="section-title">Menu de Serviços</h2>
+                <div class="catalog-grid" id="clienteServicosGrid">
+                    <!-- Gerado Dinamicamente -->
+                </div>
+
+                <h2 class="section-title">Nossos Produtos de Luxo</h2>
+                <div class="catalog-grid" id="clienteProdutosGrid">
+                    <!-- Gerado Dinamicamente -->
+                </div>
+            </section>
+
+            <!-- ABA CLIENTE: AGENDAMENTO -->
+            <section id="abaClienteAgendar" class="tab-content">
+                <h2 class="section-title">Agendamento Online</h2>
+                
+                <div class="booking-flow">
+                    <div class="booking-steps-container">
+                        <!-- Passo 1: Barbeiro -->
+                        <div class="booking-step">
+                            <div class="step-header">
+                                <span class="step-number">1</span>
+                                <h3 class="step-title">Selecione o Barbeiro</h3>
+                            </div>
+                            <div class="barber-selector-grid" id="bookingBarberGrid">
+                                <!-- Gerado Dinamicamente -->
+                            </div>
+                        </div>
+
+                        <!-- Passo 2: Serviço -->
+                        <div class="booking-step">
+                            <div class="step-header">
+                                <span class="step-number">2</span>
+                                <h3 class="step-title">Selecione o Serviço</h3>
+                            </div>
+                            <div class="booking-services-list" id="bookingServicesList">
+                                <!-- ... -->
+                            </div>
+                        </div>
+
+                        <!-- Passo 3: Data e Hora -->
+                        <div class="booking-step">
+                            <div class="step-header">
+                                <span class="step-number">3</span>
+                                <h3 class="step-title">Escolha Data & Horário</h3>
+                            </div>
+                            <h4 class="form-label" style="margin-bottom: 10px;">Próximos Dias</h4>
+                            <div class="dates-slider" id="bookingDatesSlider">
+                                <!-- ... -->
+                            </div>
+                            <h4 class="form-label" style="margin-bottom: 10px;">Horários Disponíveis</h4>
+                            <div class="time-slots-grid" id="bookingTimeSlotsGrid">
+                                <!-- ... -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar de Resumo Fixo -->
+                    <div class="booking-summary-sidebar">
+                        <div class="booking-summary-panel">
+                            <h3 class="summary-title">Resumo do Atendimento</h3>
+                            <div class="summary-list" id="bookingSummaryDetails">
+                                <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 0;">
+                                    Selecione o profissional e o serviço.
+                                </div>
+                            </div>
+                            <div class="summary-total" style="display: none;" id="bookingSummaryTotalRow">
+                                <span>Valor Total:</span>
+                               <span class="summary-total-price" id="bookingTotalPrice">R$ 0,00</span>
+                            </div>
+                            <button class="primary-btn booking-confirm-btn" style="margin-top: 20px; display: none;" id="btnConfirmarAgendamento" onclick="confirmarAgendamento()">
+                                <i class="fa-solid fa-calendar-check"></i> Confirmar Agendamento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABA CLIENTE: MINHA AGENDA -->
+            <section id="abaClienteMeusAgendamentos" class="tab-content">
+                <h2 class="section-title">Minha Agenda</h2>
+                <div class="my-bookings-list" id="clienteMeusAgendamentosList">
+                    <!-- Gerado Dinamicamente -->
+                </div>
+            </section>
+
+            <!-- BARRA DE NAVEGAÇÃO FLUTUANTE CLIENTE -->
+            <nav class="client-navigation" id="clientNav">
+                <button class="client-nav-item active" onclick="trocarAbaCliente('abaClienteHome', this)">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Início</span>
+                </button>
+                <button class="client-nav-item" onclick="trocarAbaCliente('abaClienteServicos', this)">
+                    <i class="fa-solid fa-list"></i>
+                    <span>Catálogo</span>
+                </button>
+                <button class="client-nav-item" onclick="trocarAbaCliente('abaClienteAgendar', this)">
+                    <i class="fa-solid fa-calendar-plus"></i>
+                    <span>Agendar</span>
+                </button>
+                <button class="client-nav-item" onclick="trocarAbaCliente('abaClienteMeusAgendamentos', this)">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Agenda</span>
+                </button>
+            </nav>
+        </main>
+
+
+        <!-- ==========================================
+             PORTAL DO BARBEIRO (Isolamento de Agenda e Comissão)
+             ========================================== -->
+        <main id="portalBarbeiro" style="display: none;">
+            <!-- MENU SUPERIOR BARBEIRO -->
+            <nav class="manager-navigation">
+                <button class="nav-item active" onclick="trocarAbaBarbeiro('abaBarbeiroAgenda', this)">
+                    <i class="fa-solid fa-calendar-check"></i> Minha Agenda
+                </button>
+                <button class="nav-item" onclick="trocarAbaBarbeiro('abaBarbeiroFinanceiro', this)">
+                    <i class="fa-solid fa-wallet"></i> Meus Ganhos
+                </button>
+                <button class="nav-item" onclick="trocarAbaBarbeiro('abaBarbeiroClientes', this)">
+                    <i class="fa-solid fa-users"></i> Lista de Clientes
+                </button>
+                <button class="nav-item" onclick="trocarAbaBarbeiro('abaBarbeiroAlertas', this)">
+                    <i class="fa-solid fa-bell"></i> Notificações <span id="badgeBarbeiroAlertas" style="background: var(--accent-gold); color: var(--bg-primary); font-size: 11px; padding: 2px 6px; border-radius: var(--border-radius-full); margin-left: 5px; display: none;">0</span>
+                </button>
+            </nav>
+
+            <!-- ABA BARBEIRO: AGENDA PESSOAL -->
+            <section id="abaBarbeiroAgenda" class="tab-content active">
+                <h2 class="section-title">Meus Atendimentos de Hoje e Próximos Dias</h2>
+                <div class="admin-schedule-list" id="barbeiroAgendaList">
+                    <!-- Filtrado apenas para o barbeiro logado -->
+                </div>
+            </section>
+
+            <!-- ABA BARBEIRO: MEUS GANHOS / COMISSÕES -->
+            <section id="abaBarbeiroFinanceiro" class="tab-content">
+                <h2 class="section-title">Meu Painel Financeiro</h2>
+                
+                <div class="admin-stats-grid">
+                    <div class="stat-card gold-border">
+                        <h3 class="stat-card-title">Faturamento Bruto Gerado</h3>
+                        <div class="stat-card-value" id="barbeiroFatBruto">R$ 0,00</div>
+                        <div class="stat-card-trend"><span style="color:var(--text-secondary);">Serviços + Produtos</span></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-chart-simple"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-card-title">Minha Comissão Líquida</h3>
+                        <div class="stat-card-value" id="barbeiroGanhoComissao" style="color: var(--accent-emerald);">R$ 0,00</div>
+                        <div class="stat-card-trend">Taxa definida pelo gerente: <strong id="barbeiroPctComissao">50%</strong></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-card-title">Atendimentos Efetuados</h3>
+                        <div class="stat-card-value" id="barbeiroTotalTrabalhos">0</div>
+                        <div class="stat-card-trend"><span style="color:var(--text-secondary);">Média de atendimentos</span></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-scissors"></i></div>
+                    </div>
+                </div>
+
+                <!-- Configuração de Foto de Perfil do Barbeiro -->
+                <div class="config-section-card" style="margin-top: 30px; background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.05); padding: 24px; border-radius: var(--border-radius-sm);">
+                    <div class="config-section-header" style="display:flex; gap:14px; align-items:center; margin-bottom: 20px;">
+                        <i class="fa-solid fa-user-gear" style="color:var(--accent-gold); font-size:24px;"></i>
+                        <div>
+                            <h3 class="config-section-title" style="margin:0; font-size:16px;">Minha Foto de Perfil</h3>
+                            <p class="config-section-desc" style="margin:4px 0 0 0; font-size:12px; color:var(--text-muted);">Altere sua foto de avatar exibida para os clientes no agendamento e no painel geral.</p>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+                        <div class="logo-preview-container" style="width: 80px; height: 80px; position:relative; border-radius:50%; border:2px solid var(--accent-gold); overflow:hidden;">
+                            <img id="barbeiroPainelAvatar" src="" alt="Sua Foto" style="display:none; width:100%; height:100%; object-fit:cover;">
+                            <div id="barbeiroPainelAvatarIcon" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--bg-tertiary); font-size:28px; color:var(--accent-gold);"><i class="fa-solid fa-user"></i></div>
+                        </div>
+                        <div>
+                            <div style="display:flex; gap:10px;">
+                                <label class="primary-btn" for="barbeiroFotoInput" style="cursor:pointer; display:inline-block; font-size:13px; padding: 10px 18px;">
+                                    <i class="fa-solid fa-upload"></i> Escolher Imagem
+                                </label>
+                                <input type="file" id="barbeiroFotoInput" accept="image/*" style="display:none" onchange="uploadFotoBarbeiro(this)">
+                                <button class="danger-btn" onclick="removerFotoBarbeiro()" style="font-size:13px; padding: 10px 18px;"><i class="fa-solid fa-trash-alt"></i> Remover</button>
+                            </div>
+                            <p style="font-size:11px; color:var(--text-muted); margin-top:8px; margin-bottom:0;"><i class="fa-solid fa-circle-info"></i> Formatos aceitos: PNG ou JPG. Recomendado: 256x256px. Limite: 1MB.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABA BARBEIRO: CLIENTES (RESTRIÇÃO DE DADOS) -->
+            <section id="abaBarbeiroClientes" class="tab-content">
+                <div class="schedule-header-actions" style="margin-bottom: 20px;">
+                    <h2 class="section-title" style="margin-bottom: 0;">Lista de Clientes Cadastrados</h2>
+                    <button class="primary-btn" onclick="abrirModalClienteForm()"><i class="fa-solid fa-user-plus"></i> Adicionar Cliente</button>
+                </div>
+                
+                <div style="background: var(--bg-tertiary); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: var(--border-radius-sm); padding:10px 16px; margin-bottom:20px; font-size:12px; color: var(--accent-gold);">
+                    <i class="fa-solid fa-shield-halved"></i> <strong>Modo de Privacidade Ativo:</strong> Telefones e E-mails dos clientes estão ocultos. Exclusão permitida apenas ao Gerente.
+                </div>
+
+                <div class="customer-table-container">
+                    <table class="customer-table">
+                        <thead>
+                            <tr>
+                                <th>Nome do Cliente</th>
+                                <th>Telefone de Contato</th>
+                                <th>E-mail</th>
+                            </tr>
+                        </thead>
+                        <tbody id="barbeiroClientesTableBody">
+                            <!-- Gerado dinamicamente com dados restritos -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ABA BARBEIRO: ALERTAS -->
+            <section id="abaBarbeiroAlertas" class="tab-content">
+                <h2 class="section-title">Minhas Notificações</h2>
+                <div class="notifications-list" id="barbeiroAlertasList">
+                    <!-- Apenas alertas direcionados a ele -->
+                </div>
+            </section>
+        </main>
+
+
+        <!-- ==========================================
+             PORTAL DO GERENTE (Estatísticas, Comissões e Gestão Completa)
+             ========================================== -->
+        <main id="portalGerente" style="display: none;">
+            <!-- MENU SUPERIOR GERENTE -->
+            <nav class="manager-navigation">
+                <button class="nav-item active" onclick="trocarAbaGerente('abaGerenteDashboard', this)">
+                    <i class="fa-solid fa-chart-pie"></i> Painel Geral
+                </button>
+                <button class="nav-item" onclick="trocarAbaGerente('abaGerenteProfissionais', this)">
+                    <i class="fa-solid fa-user-tie"></i> Profissionais
+                </button>
+                <button class="nav-item" onclick="trocarAbaGerente('abaGerenteGestao', this)">
+                    <i class="fa-solid fa-screwdriver-wrench"></i> Gestão de Serviços
+                </button>
+                <button class="nav-item" onclick="trocarAbaGerente('abaGerenteClientes', this)">
+                    <i class="fa-solid fa-users-gear"></i> Cadastro de Clientes
+                </button>
+                <button class="nav-item" onclick="trocarAbaGerente('abaGerenteAgenda', this)">
+                    <i class="fa-solid fa-calendar-week"></i> Agenda Geral
+                </button>
+                <button class="nav-item" onclick="trocarAbaGerente('abaGerenteAlertas', this)">
+                    <i class="fa-solid fa-database"></i> Logs do Sistema <span id="badgeGerenteAlertas" style="background: var(--accent-gold); color: var(--bg-primary); font-size: 11px; padding: 2px 6px; border-radius: var(--border-radius-full); margin-left: 5px; display: none;">0</span>
+                </button>
+                <button class="nav-item" onclick="trocarAbaGerente('abaGerenteSistema', this)">
+                    <i class="fa-solid fa-shield-halved"></i> Sistema & Backup
+                </button>
+                <button class="nav-item" onclick="trocarAbaGerente('abaGerenteConfiguracoes', this)">
+                    <i class="fa-solid fa-palette"></i> Visual & Tema
+                </button>
+            </nav>
+
+            <!-- ABA GERENTE: DASHBOARD FINANCEIRO E COMISSÕES -->
+            <section id="abaGerenteDashboard" class="tab-content active">
+                <h2 class="section-title">Dashboard e Lucratividade</h2>
+                
+                <div class="admin-stats-grid">
+                    <div class="stat-card gold-border" onclick="abrirPlanilhaDashboard('faturamento')" style="cursor:pointer;" title="Clique para ver a planilha de faturamento">
+                        <h3 class="stat-card-title">Faturamento Bruto Total</h3>
+                        <div class="stat-card-value" id="dashboardFaturamentoTotal">R$ 0,00</div>
+                        <div class="stat-card-trend up"><i class="fa-solid fa-circle-up"></i> Faturamento Geral</div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-coins"></i></div>
+                    </div>
+                    <div class="stat-card" onclick="abrirPlanilhaDashboard('lucro')" style="cursor:pointer;" title="Clique para ver a planilha de lucro líquido">
+                        <h3 class="stat-card-title">Lucro Líquido Barbearia</h3>
+                        <div class="stat-card-value" id="dashboardLucroLiquido" style="color: var(--accent-emerald);">R$ 0,00</div>
+                        <div class="stat-card-trend">Descontadas as comissões pagas</div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
+                    </div>
+                    <div class="stat-card" onclick="abrirPlanilhaDashboard('atendimentos')" style="cursor:pointer;" title="Clique para ver a planilha de atendimentos">
+                        <h3 class="stat-card-title">Atendimentos Concluídos</h3>
+                        <div class="stat-card-value" id="dashboardTotalTrabalhos">0</div>
+                        <div class="stat-card-trend"><span style="color:var(--text-secondary);">Agendamentos ativos</span></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-chair"></i></div>
+                    </div>
+                    <div class="stat-card" onclick="abrirPlanilhaDashboard('comissoes')" style="cursor:pointer;" title="Clique para ver a planilha de comissões">
+                        <h3 class="stat-card-title">Comissões Totais Pagas</h3>
+                        <div class="stat-card-value" id="dashboardComissoesPagas" style="color: var(--accent-danger);">R$ 0,00</div>
+                        <div class="stat-card-trend">Repasse aos profissionais</div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-people-carry-box"></i></div>
+                    </div>
+                </div>
+
+                <!-- Banner de Assinatura SaaS -->
+                <div class="saas-upgrade-card" style="background: linear-gradient(135deg, rgba(197, 160, 40, 0.1), transparent); border: 1px solid var(--accent-gold); padding: 16px; border-radius: var(--border-radius-sm); margin-top: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+                    <h3 style="color: var(--accent-gold); margin: 0; font-size: 16px;"><i class="fa-solid fa-crown"></i> Assinatura do Sistema</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin: 0; max-width: 400px;">Assine agora ou renove o seu plano para garantir acesso ininterrupto a todas as ferramentas premium da The Golden Blade Platform.</p>
+                    <button class="primary-btn" onclick="abrirPagamentoSaaS()">
+                        <i class="fa-solid fa-credit-card"></i> Renovar / Assinar Plano
+                    </button>
+                </div>
+
+                <!-- Detalhamento de Comissões e Desempenho -->
+                <div class="barber-performance-section">
+                    <h3 class="section-title" style="font-size: 18px; margin-bottom: 20px;">Acompanhamento e Configuração de Comissão Real-Time</h3>
+                    <div class="barber-perf-list" id="dashboardBarbeirosPerformanceList">
+                        <!-- Gerado Dinamicamente com entrada de comissão (%) -->
+                    </div>
+                </div>
+
+                <!-- TAREFAS DE PÓS-VENDA (WHATSAPP CRM) -->
+                <div class="pos-venda-section" style="margin-top: 30px; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--border-radius-lg); padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">
+                            <i class="fa-brands fa-whatsapp" style="color: #25D366; margin-right: 8px;"></i>
+                            Tarefas de Pós-Venda
+                        </h3>
+                        <span style="font-size: 12px; color: var(--text-muted);">Clientes atendidos há mais de 1h</span>
+                    </div>
+                    <div id="listaPendenciasPosVenda" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Gerado via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABA GERENTE: PROFISSIONAIS (CRUD DE BARBEIROS) -->
+            <section id="abaGerenteProfissionais" class="tab-content">
+                <div class="crud-section">
+                    <div class="crud-card">
+                        <div class="crud-header">
+                            <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">Profissionais Cadastrados</h3>
+                            <button class="primary-btn" onclick="abrirModalNovoProfissional()">
+                                <i class="fa-solid fa-user-plus"></i> Novo Profissional
+                            </button>
+                        </div>
+                        <div class="crud-list" id="profissionaisList">
+                            <!-- Gerado Dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABA GERENTE: GESTÃO CRUD -->
+            <section id="abaGerenteGestao" class="tab-content">
+                <div class="crud-section">
+                    <!-- Serviços -->
+                    <div class="crud-card">
+                        <div class="crud-header">
+                            <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">Serviços Cadastrados</h3>
+                            <button class="primary-btn" onclick="abrirModalForm('servico')">
+                                <i class="fa-solid fa-circle-plus"></i> Novo Serviço
+                            </button>
+                        </div>
+                        <div class="crud-list" id="crudServicosList">
+                            <!-- ... -->
+                        </div>
+                    </div>
+
+                    <!-- Produtos -->
+                    <div class="crud-card">
+                        <div class="crud-header">
+                            <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">Produtos nas Vendas</h3>
+                            <button class="primary-btn" onclick="abrirModalForm('produto')">
+                                <i class="fa-solid fa-circle-plus"></i> Novo Produto
+                            </button>
+                        </div>
+                        <div class="crud-list" id="crudProdutosList">
+                            <!-- ... -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABA GERENTE: CADASTRO COMPLETO DE CLIENTES (COM EXCLUSÃO) -->
+            <section id="abaGerenteClientes" class="tab-content">
+                <div class="schedule-header-actions" style="margin-bottom: 20px;">
+                    <h2 class="section-title" style="margin-bottom: 0;">Base de Clientes (Gerência)</h2>
+                    <button class="primary-btn" onclick="abrirModalClienteForm()"><i class="fa-solid fa-user-plus"></i> Cadastrar Cliente</button>
+                </div>
+
+                <!-- Filtros de Clientes -->
+                <div class="clientes-filtros-bar">
+                    <div class="filtro-group">
+                        <i class="fa-solid fa-magnifying-glass filtro-icon"></i>
+                        <input type="text" class="filtro-input" id="gerenteFiltroNome" placeholder="Filtrar por nome..." oninput="filtrarClientes()">
+                    </div>
+                    <div class="filtro-group">
+                        <i class="fa-solid fa-phone filtro-icon"></i>
+                        <input type="text" class="filtro-input" id="gerenteFiltroTelefone" placeholder="Filtrar por telefone..." oninput="filtrarClientes()">
+                    </div>
+                    <div class="filtro-group">
+                        <i class="fa-solid fa-calendar-day filtro-icon"></i>
+                        <select class="filtro-input filtro-select" id="gerenteFiltroUltimoServico" onchange="filtrarClientes()">
+                            <option value="">Último serviço: qualquer data</option>
+                            <option value="7">Últimos 7 dias</option>
+                            <option value="30">Últimos 30 dias</option>
+                            <option value="90">Últimos 3 meses</option>
+                            <option value="sem_servico">Sem serviços</option>
+                        </select>
+                    </div>
+                    <button class="secondary-btn" onclick="limparFiltrosClientes()"><i class="fa-solid fa-rotate-left"></i> Limpar</button>
+                </div>
+                <div id="gerenteFiltroResultado" class="filtro-resultado-info" style="display:none;"></div>
+
+                <div class="customer-table-container">
+                    <table class="customer-table">
+                        <thead>
+                            <tr>
+                                <th>Nome do Cliente</th>
+                                <th>Telefone de Contato</th>
+                                <th>Endereço de E-mail</th>
+                                <th>Último Serviço</th>
+                                <th style="text-align: right;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gerenteClientesTableBody">
+                            <!-- Gerado dinamicamente com permissão de exclusão total -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ABA GERENTE: AGENDA TIMELINE -->
+            <section id="abaGerenteAgenda" class="tab-content">
+
+                <!-- Cabeçalho: navegação de data + botão Nova Comanda -->
+                <div class="agenda-tl-header">
+                    <button class="agenda-nav-btn" onclick="navegarDiaAgenda(-1)" title="Dia anterior">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <div class="agenda-tl-date-label" id="agendaTlDateLabel">
+                        <i class="fa-solid fa-calendar-day" style="color:var(--accent-gold);"></i>
+                        <span id="agendaTlDataTexto">Carregando...</span>
+                    </div>
+                    <button class="agenda-nav-btn" onclick="navegarDiaAgenda(1)" title="Próximo dia">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <button class="secondary-btn" onclick="irParaHojeAgenda()" style="padding:8px 16px; font-size:13px;">
+                        Hoje
+                    </button>
+                    <button class="primary-btn" onclick="abrirComanda(null, null, null)" style="margin-left:auto; padding:8px 18px; font-size:13px;">
+                        <i class="fa-solid fa-plus"></i> Nova Comanda
+                    </button>
+                </div>
+
+                <!-- Grid da Timeline (gerada pelo JS) -->
+                <div class="agenda-tl-wrapper">
+                    <div class="agenda-tl-container" id="agendaTlContainer">
+                        <!-- Preenchido por renderizarAgendaTimeline() -->
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ABA GERENTE: LOGS DO SISTEMA -->
+            <section id="abaGerenteAlertas" class="tab-content">
+                <div class="notifications-panel">
+                    <div class="schedule-header-actions">
+                        <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">Auditoria de Notificações</h3>
+                        <button class="secondary-btn" onclick="marcarTodasNotificacoesLidas()">
+                            <i class="fa-solid fa-check-double"></i> Limpar não lidas
+                        </button>
+                    </div>
+                    <div class="notifications-list" id="gerenteAlertasList"></div>
+                </div>
+            </section>
+
+            <!-- ABA GERENTE: SISTEMA & BACKUP -->
+            <section id="abaGerenteSistema" class="tab-content">
+
+                <div class="config-section-card">
+                    <div class="config-section-header">
+                        <i class="fa-solid fa-download" style="color:var(--accent-gold);font-size:22px;"></i>
+                        <div>
+                            <h3 class="config-section-title">Exportar Dados (Backup)</h3>
+                            <p class="config-section-desc">Baixa todos os dados do sistema em um arquivo JSON seguro. Guarde em local seguro.</p>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                        <button class="primary-btn" onclick="exportarDados()">
+                            <i class="fa-solid fa-file-arrow-down"></i> Baixar Backup Completo
+                        </button>
+                        <span class="backup-last-info" id="backupLastInfo">Nenhum backup registrado</span>
+                    </div>
+                </div>
+
+                <div class="config-section-card">
+                    <div class="config-section-header">
+                        <i class="fa-solid fa-upload" style="color:var(--accent-gold);font-size:22px;"></i>
+                        <div>
+                            <h3 class="config-section-title">Importar Dados (Restaurar)</h3>
+                            <p class="config-section-desc">Restaura todos os dados a partir de um arquivo de backup. <strong style="color:var(--accent-danger);">⚠️ Substitui os dados atuais.</strong></p>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                        <label class="secondary-btn" for="importarDadosInput" style="cursor:pointer;">
+                            <i class="fa-solid fa-file-arrow-up"></i> Selecionar Arquivo
+                        </label>
+                        <input type="file" id="importarDadosInput" accept=".json" style="display:none" onchange="importarDados(this)">
+                        <span style="font-size:12px; color:var(--text-muted);">Formatos suportados: .json</span>
+                    </div>
+                </div>
+
+                <div class="config-section-card" style="border-color:rgba(244,63,94,0.2);">
+                    <div class="config-section-header">
+                        <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-danger);font-size:22px;"></i>
+                        <div>
+                            <h3 class="config-section-title" style="color:var(--accent-danger);">Zona de Perigo</h3>
+                            <p class="config-section-desc">Ações irreversíveis. Confirme com cuidado.</p>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <button class="danger-btn" onclick="resetarTodosDados()">
+                            <i class="fa-solid fa-bomb"></i> Apagar Todos os Dados
+                        </button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ABA GERENTE: VISUAL & TEMA -->
+            <section id="abaGerenteConfiguracoes" class="tab-content">
+
+                <!-- IDENTIDADE DA BARBEARIA -->
+                <div class="config-section-card">
+                    <div class="config-section-header">
+                        <i class="fa-solid fa-store" style="color:var(--accent-gold); font-size:22px;"></i>
+                        <div>
+                            <h3 class="config-section-title">Identidade da Barbearia</h3>
+                            <p class="config-section-desc">Nome, slogan e logo exibidos em todo o app e na tela de login</p>
+                        </div>
+                    </div>
+
+                    <!-- Logo Upload Area -->
+                    <div class="logo-upload-area">
+                        <div class="logo-preview-container">
+                            <div class="logo-preview-icon" id="logoPreviewIcon"><i class="fa-solid fa-scissors"></i></div>
+                            <img id="logoPreviewImg" src="" alt="Logo" style="display:none; width:90px; height:90px; object-fit:contain; border-radius:50%; border:3px solid var(--accent-gold); box-shadow: 0 0 20px var(--accent-gold-glow);">
+                        </div>
+                        <div class="logo-upload-col">
+                            <div class="logo-upload-actions">
+                                <label class="primary-btn" for="logoFileInput" style="cursor:pointer;">
+                                    <i class="fa-solid fa-upload"></i> Carregar Imagem
+                                </label>
+                                <input type="file" id="logoFileInput" accept="image/*" style="display:none" onchange="uploadLogoArquivo(this)">
+                                <button class="danger-btn" onclick="removerLogo()">
+                                    <i class="fa-solid fa-trash-alt"></i> Remover
+                                </button>
+                            </div>
+                            <p class="logo-upload-hint"><i class="fa-solid fa-circle-info"></i> PNG, JPG, SVG &middot; Recomendado: 256×256px &middot; Máx 2MB</p>
+                        </div>
+                    </div>
+
+                    <!-- Nome e Tagline -->
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:24px;">
+                        <div class="form-group">
+                            <label class="form-label" for="configNomeBarbearia">Nome da Barbearia</label>
+                            <input type="text" class="form-input" id="configNomeBarbearia" placeholder="Ex: The Golden Blade" oninput="previewNomeLogo()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="configTagline">Slogan / Tagline</label>
+                            <input type="text" class="form-input" id="configTagline" placeholder="Ex: Gentleman's Club" oninput="previewNomeLogo()">
+                        </div>
+                    </div>
+                    
+                    <!-- Endereço e Horários -->
+                    <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-top:16px;">
+                        <div class="form-group">
+                            <label class="form-label" for="configEnderecoBarbearia">Endereço Completo</label>
+                            <input type="text" class="form-input" id="configEnderecoBarbearia" placeholder="Ex: Av. Paulista, 1000 - São Paulo, SP">
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+                        <div class="form-group">
+                            <label class="form-label" for="configHorarioSemana">Horário na Semana</label>
+                            <input type="text" class="form-input" id="configHorarioSemana" placeholder="Ex: Seg a Sex: 09h às 20h">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="configHorarioFds">Horário no Final de Semana</label>
+                            <input type="text" class="form-input" id="configHorarioFds" placeholder="Ex: Sáb: 09h às 15h / Dom: Fechado">
+                        </div>
+                    </div>
+                    
+                    <!-- Link de Convite -->
+                    <div style="margin-top:24px; padding: 16px; background: rgba(197,160,40,0.05); border: 1px solid rgba(197,160,40,0.2); border-radius: 8px;">
+                        <h4 style="color: var(--accent-gold); margin-top:0; margin-bottom: 8px; font-size: 14px;"><i class="fa-solid fa-link"></i> Link de Convite para Clientes</h4>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Envie este link para seus clientes. Ao se cadastrarem por ele, cairão direto no banco de dados da sua barbearia.</p>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" class="form-input" id="configLinkConvite" readonly style="background: rgba(0,0,0,0.3); font-family: monospace; font-size:12px;">
+                            <button class="primary-btn" onclick="copiarLinkConvite()"><i class="fa-regular fa-copy"></i> Copiar</button>
+                        </div>
+                    </div>
+
+                    <!-- Preview em tempo real -->
+                    <div class="config-nome-preview">
+                        <i class="fa-solid fa-scissors config-nome-preview-icon" id="configPreviewIcon"></i>
+                        <div>
+                            <div id="previewNomeText" class="config-preview-nome">The Golden Blade</div>
+                            <div id="previewTaglineText" class="config-preview-tagline">Gentleman's Club</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TEMAS PREDEFINIDOS -->
+                <div class="config-section-card">
+                    <div class="config-section-header">
+                        <i class="fa-solid fa-swatchbook" style="color:var(--accent-gold); font-size:22px;"></i>
+                        <div>
+                            <h3 class="config-section-title">Temas Predefinidos</h3>
+                            <p class="config-section-desc">Clique num tema para aplicar instantaneamente em todo o app</p>
+                        </div>
+                    </div>
+                    <div class="temas-grid" id="temasGrid">
+                        <!-- Renderizado dinamicamente pelo JS -->
+                    </div>
+                </div>
+
+                <!-- COR PERSONALIZADA -->
+                <div class="config-section-card">
+                    <div class="config-section-header">
+                        <i class="fa-solid fa-droplet" style="color:var(--accent-gold); font-size:22px;"></i>
+                        <div>
+                            <h3 class="config-section-title">Cor de Destaque Personalizada</h3>
+                            <p class="config-section-desc">Defina qualquer cor e veja a mudança em tempo real</p>
+                        </div>
+                    </div>
+                    <div class="custom-color-row">
+                        <div class="color-picker-wrapper">
+                            <input type="color" id="corPersonalizadaInput" value="#c5a028" oninput="previewCorPersonalizada(this.value)">
+                            <span class="color-picker-label" id="corHexLabel">#c5a028</span>
+                        </div>
+                        <div class="color-preview-swatches" id="colorPreviewSwatches"></div>
+                        <button class="primary-btn" onclick="aplicarCorPersonalizada()">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Aplicar Cor
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SALVAR / RESTAURAR -->
+                <div style="display:flex; gap:12px; margin-top:10px; justify-content:flex-end; flex-wrap:wrap;">
+                    <button class="secondary-btn" onclick="resetarConfiguracaoVisual()">
+                        <i class="fa-solid fa-rotate-left"></i> Restaurar Padrão
+                    </button>
+                    <button class="primary-btn" style="padding:12px 32px; font-size:15px;" onclick="salvarConfiguracaoVisual()">
+                        <i class="fa-solid fa-floppy-disk"></i> Salvar Tudo
+                    </button>
+                </div>
+
+            </section>
+
+        </main>
+
+        <!-- ==========================================
+             PORTAL DO DESENVOLVEDOR (Master)
+             ========================================== -->
+        <main id="portalDesenvolvedor" style="display: none;">
+            <!-- MENU SUPERIOR DESENVOLVEDOR -->
+            <nav class="manager-navigation" style="grid-template-columns: repeat(4, 1fr);">
+                <button class="nav-item active" onclick="trocarAbaDesenvolvedor('abaDevDashboard', this)">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </button>
+                <button class="nav-item" onclick="trocarAbaDesenvolvedor('abaDevTenants', this)">
+                    <i class="fa-solid fa-store"></i> Barbearias (Tenants)
+                </button>
+                <button class="nav-item" onclick="trocarAbaDesenvolvedor('abaDevPlans', this)">
+                    <i class="fa-solid fa-tags"></i> Planos & Preços
+                </button>
+                <button class="nav-item" onclick="fazerLogout()" style="color: var(--accent-danger); border-color: rgba(244,63,94,0.3);">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sair Master
+                </button>
+            </nav>
+
+            <!-- ABA DEV: DASHBOARD -->
+            <section id="abaDevDashboard" class="tab-content active">
+                <h2 class="section-title">Dashboard SaaS - Visão Global</h2>
+                <div class="admin-stats-grid">
+                    <div class="stat-card gold-border">
+                        <h3 class="stat-card-title">Receita Recorrente Mensal (MRR)</h3>
+                        <div class="stat-card-value" id="devFaturamentoSaaS">R$ 0,00</div>
+                        <div class="stat-card-trend"><span style="color:var(--text-secondary);">De assinaturas ativas</span></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-card-title">Total de Barbearias</h3>
+                        <div class="stat-card-value" id="devTotalBarbearias" style="color: var(--accent-emerald);">0</div>
+                        <div class="stat-card-trend">Cadastradas no sistema</div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-store-check"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-card-title">Testes Grátis / Expiradas</h3>
+                        <div class="stat-card-value" style="color: var(--accent-gold);">
+                            <span id="devTotalTrial">0</span> <span style="font-size:16px;color:var(--text-muted);">/</span> <span id="devTotalExpirados" style="color:var(--accent-danger);">0</span>
+                        </div>
+                        <div class="stat-card-trend"><span style="color:var(--text-secondary);">Potenciais clientes</span></div>
+                        <div class="stat-card-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABA DEV: GESTÃO DE BARBEARIAS (TENANTS) -->
+            <section id="abaDevTenants" class="tab-content">
+                <h2 class="section-title">Controle de Barbearias (Inquilinos)</h2>
+                <div class="customer-table-container">
+                    <table class="customer-table">
+                        <thead>
+                            <tr>
+                                <th>Nome da Barbearia</th>
+                                <th>Administrador</th>
+                                <th>Plano Escolhido</th>
+                                <th>Status / Expiração</th>
+                                <th style="text-align: right;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devTenantsTableBody">
+                            <!-- Gerado dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ABA DEV: GESTÃO DE PLANOS (CRUD) -->
+            <section id="abaDevPlans" class="tab-content">
+                <div class="crud-section">
+                    <div class="crud-card">
+                        <div class="crud-header">
+                            <h3 class="section-title" style="font-size: 18px; margin-bottom: 0;">Planos de Assinatura do App</h3>
+                            <button class="primary-btn" onclick="abrirModalPlanoForm(null)">
+                                <i class="fa-solid fa-circle-plus"></i> Criar Novo Plano
+                            </button>
+                        </div>
+                        <div class="customer-table-container">
+                            <table class="customer-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome do Plano</th>
+                                        <th>Preço Mensal</th>
+                                        <th>Duração</th>
+                                        <th style="text-align: right;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devPlansTableBody">
+                                    <!-- Gerado dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ==========================================
+         MODAIS POP-UP
+         ========================================== -->
+
+    <!-- Modal: CONFIGURAÇÃO / EDIÇÃO DE PROFISSIONAL -->
+    <div class="modal-overlay" id="modalBarbeiroConfig">
+        <div class="modal-card" style="max-width: 640px;">
+            <div class="modal-header">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    <img id="modalBarbeiroAvatar" src="" alt="" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid var(--accent-gold);">
+                    <div>
+                        <h3 id="modalBarbeiroNomeHeader" style="margin:0; font-size:17px;">Configurações do Profissional</h3>
+                        <span id="modalBarbeiroEspecHeader" style="font-size:12px; color:var(--text-muted);"></span>
+                    </div>
+                </div>
+                <button class="icon-btn" onclick="fecharModalBarbeiroConfig()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formBarbeiroConfig" onsubmit="salvarBarbeiroConfig(event)">
+                    <input type="hidden" id="configBarbeiroId">
+
+                    <!-- Status Ativo/Inativo -->
+                    <div class="barber-status-toggle">
+                        <span class="barber-status-lbl">Status do Profissional</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="configBarbeiroAtivo" onchange="atualizarStatusVisual()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="configBarbeiroStatusTexto" class="status-badge-text ativo">Ativo</span>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="form-group">
+                            <label class="form-label" for="configBarbeiroNome">Nome Completo</label>
+                            <input type="text" class="form-input" id="configBarbeiroNome" required placeholder="Ex: Lucas Fade">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="configBarbeiroEspec">Especialidade</label>
+                            <input type="text" class="form-input" id="configBarbeiroEspec" required placeholder="Ex: Degradês & Modernos">
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+                        <div class="form-group" style="max-width:200px;">
+                            <label class="form-label" for="configBarbeiroComissao">Taxa de Comissão (%)</label>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <input type="number" min="0" max="100" class="form-input" id="configBarbeiroComissao" required placeholder="50">
+                                <span style="color:var(--accent-gold); font-weight:700; font-size:18px;">%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Foto do Profissional</label>
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <div class="logo-preview-container" style="width: 48px; height: 48px; border-radius:50%; border:2px solid var(--accent-gold); overflow:hidden; position:relative;">
+                                    <img id="configBarbeiroFotoPreview" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                                    <div id="configBarbeiroFotoIcon" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--bg-tertiary); font-size:18px; color:var(--accent-gold);"><i class="fa-solid fa-user"></i></div>
+                                </div>
+                                <div style="display:flex; gap:6px;">
+                                    <label class="primary-btn" for="gerenteUploadBarbeiroFoto" style="cursor:pointer; display:inline-block; font-size:11px; padding:8px 12px;">
+                                        <i class="fa-solid fa-camera"></i>
+                                    </label>
+                                    <input type="file" id="gerenteUploadBarbeiroFoto" accept="image/*" style="display:none" onchange="uploadFotoBarbeiroGerente(this)">
+                                    <button type="button" class="danger-btn" onclick="removerFotoBarbeiroGerente()" style="font-size:11px; padding:8px 12px;"><i class="fa-solid fa-trash-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rendimentos Embutidos -->
+                    <div class="barber-rendimentos-section">
+                        <h4 class="barber-rendimentos-title"><i class="fa-solid fa-chart-column"></i> Rendimentos do Profissional</h4>
+                        <div class="barber-rendimentos-grid" id="modalRendimentosGrid">
+                            <!-- Preenchido dinamicamente -->
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                        <button type="button" class="secondary-btn" onclick="fecharModalBarbeiroConfig()">Cancelar</button>
+                        <button type="submit" class="primary-btn"><i class="fa-solid fa-floppy-disk"></i> Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: CADASTRO DE NOVO PROFISSIONAL -->
+    <div class="modal-overlay" id="modalNovoProfissional">
+        <div class="modal-card" style="max-width:520px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-user-plus" style="color:var(--accent-gold);"></i> Cadastrar Novo Profissional</h3>
+                <button class="icon-btn" onclick="fecharModalNovoProfissional()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoProfissional" onsubmit="salvarNovoProfissional(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="novoProfNome">Nome Completo</label>
+                        <input type="text" class="form-input" id="novoProfNome" required placeholder="Ex: Pedro Navalhado">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="novoProfEspec">Especialidade</label>
+                        <input type="text" class="form-input" id="novoProfEspec" required placeholder="Ex: Cortes Clássicos & Barba">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="form-group">
+                            <label class="form-label" for="novoProfLogin">Login (usuário)</label>
+                            <input type="text" class="form-input" id="novoProfLogin" required placeholder="Ex: pedro" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="novoProfSenha">Senha Inicial</label>
+                            <input type="password" class="form-input" id="novoProfSenha" required placeholder="Ex: 1234" value="1234" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div class="form-group" style="max-width:200px;">
+                        <label class="form-label" for="novoProfComissao">Comissão Inicial (%)</label>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <input type="number" min="0" max="100" class="form-input" id="novoProfComissao" value="50" required>
+                            <span style="color:var(--accent-gold); font-weight:700; font-size:18px;">%</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                        <button type="button" class="secondary-btn" onclick="fecharModalNovoProfissional()">Cancelar</button>
+                        <button type="submit" class="primary-btn"><i class="fa-solid fa-user-check"></i> Cadastrar Profissional</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+         
+    <!-- Modal 1: CRUD de Itens (Serviços e Produtos) -->
+    <div class="modal-overlay" id="modalFormOverlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modalFormTitulo">Adicionar Item</h3>
+                <button class="icon-btn" onclick="fecharModalForm()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="itemCadastroForm" onsubmit="salvarItemForm(event)">
+                    <input type="hidden" id="formItemId">
+                    <input type="hidden" id="formItemTipo">
+
+                    <div class="form-group">
+                        <label class="form-label" for="formItemNome">Nome</label>
+                        <input type="text" class="form-input" id="formItemNome" required placeholder="Ex: Degradê Navalhado / Pomada Matte">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="formItemPreco">Preço (R$)</label>
+                        <input type="number" step="0.01" min="0" class="form-input" id="formItemPreco" required placeholder="Ex: 50.00">
+                    </div>
+
+                    <div class="form-group" id="formGroupDuracao">
+                        <label class="form-label" for="formItemDuracao">Duração Estimada (minutos)</label>
+                        <input type="number" min="5" step="5" class="form-input" id="formItemDuracao" placeholder="Ex: 30">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="formItemDescricao">Descrição</label>
+                        <textarea class="form-input" id="formItemDescricao" placeholder="Breve resumo sobre o item..."></textarea>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                        <button type="button" class="secondary-btn" onclick="fecharModalForm()">Cancelar</button>
+                        <button type="submit" class="primary-btn"><i class="fa-solid fa-save"></i> Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Cadastro / Edição de Cliente -->
+    <div class="modal-overlay" id="modalClienteOverlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modalClienteTitulo">Cadastrar Novo Cliente</h3>
+                <button class="icon-btn" onclick="fecharModalClienteForm()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="clienteCadastroForm" onsubmit="salvarClienteForm(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="formClienteNome">Nome Completo</label>
+                        <input type="text" class="form-input" id="formClienteNome" required placeholder="Ex: Maurício Koop Junior">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="formClienteTelefone">Telefone / WhatsApp</label>
+                        <input type="tel" class="form-input" id="formClienteTelefone" required placeholder="Ex: (11) 99999-8888">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="formClienteEmail">E-mail</label>
+                        <input type="email" class="form-input" id="formClienteEmail" required placeholder="Ex: mauricio@email.com">
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                        <button type="button" class="secondary-btn" onclick="fecharModalClienteForm()">Cancelar</button>
+                        <button type="submit" class="primary-btn"><i class="fa-solid fa-user-check"></i> Concluir Cadastro</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: EDITAR CLIENTE (Gerente) -->
+    <div class="modal-overlay" id="modalEditarClienteOverlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-user-pen" style="color: var(--accent-gold);"></i> Editar Cliente</h2>
+                <button class="close-modal-btn" onclick="fecharModalEditarCliente()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="clienteEditarForm" onsubmit="salvarEdicaoCliente(event)">
+                    <input type="hidden" id="editClienteId">
+                    <div class="form-group">
+                        <label class="form-label">Nome Completo</label>
+                        <input type="text" class="form-input" id="editClienteNome" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telefone / WhatsApp</label>
+                        <input type="tel" class="form-input" id="editClienteTelefone" required>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <button type="button" class="secondary-btn" style="flex:1;" onclick="fecharModalEditarCliente()">Cancelar</button>
+                        <button type="submit" class="primary-btn" style="flex:1;"><i class="fa-solid fa-save"></i> Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: RECORTADOR DE LOGO -->
+    <div class="modal-overlay" id="modalCropperLogo" style="z-index:20000;">
+        <div class="modal-card" style="max-width:420px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-crop-simple" style="color:var(--accent-gold);"></i> Ajustar Logo</h3>
+                <button class="icon-btn" onclick="fecharCropperLogo()" style="color:var(--text-secondary);font-size:20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px; text-align:center;">
+                    <i class="fa-solid fa-hand"></i> Arraste a imagem para posicionar &middot; Use o controle de zoom abaixo
+                </p>
+                <!-- Canvas do Cropper -->
+                <div class="cropper-wrap" id="cropperWrap">
+                    <canvas id="cropperCanvas" width="280" height="280"></canvas>
+                </div>
+                <!-- Zoom -->
+                <div class="cropper-controls">
+                    <i class="fa-solid fa-magnifying-glass-minus" style="color:var(--text-muted);"></i>
+                    <input type="range" id="cropperZoom" min="0.5" max="4" step="0.02" value="1"
+                        oninput="onCropperZoom(this.value)" style="flex:1; accent-color:var(--accent-gold);">
+                    <i class="fa-solid fa-magnifying-glass-plus" style="color:var(--text-muted);"></i>
+                </div>
+                <!-- Preview circular do resultado -->
+                <div style="display:flex; align-items:center; gap:12px; margin-top:14px;">
+                    <span style="font-size:11px; color:var(--text-muted); white-space:nowrap;">Preview:</span>
+                    <canvas id="cropperPreview" width="48" height="48" style="border-radius:50%; border:2px solid var(--accent-gold); box-shadow:0 0 10px var(--accent-gold-glow);"></canvas>
+                    <span style="font-size:11px; color:var(--text-muted);">256×256px · PNG comprimido</span>
+                </div>
+                <!-- Ações -->
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+                    <button class="secondary-btn" onclick="fecharCropperLogo()">Cancelar</button>
+                    <button class="primary-btn" onclick="confirmarCropLogo()">
+                        <i class="fa-solid fa-check"></i> Salvar Logo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: NOVA COMANDA -->
+    <div class="modal-overlay" id="modalComanda" style="z-index:15000;">
+        <div class="modal-card comanda-card">
+
+            <!-- Header da Comanda -->
+            <div class="modal-header comanda-header">
+                <div class="comanda-header-info">
+                    <div class="comanda-header-avatar" id="comandaBarberAvatar">
+                        <i class="fa-solid fa-scissors"></i>
+                    </div>
+                    <div>
+                        <div class="comanda-header-title">Nova Comanda</div>
+                        <div class="comanda-header-sub" id="comandaHeaderSub">Selecione o profissional e horário</div>
+                    </div>
+                </div>
+                <button class="icon-btn" onclick="fecharComanda()" style="color:var(--text-secondary);font-size:20px;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="comanda-body">
+                <div class="comanda-cols">
+
+                    <!-- COLUNA ESQUERDA: Dados + Itens -->
+                    <div class="comanda-col-left">
+
+                        <!-- Profissional + Data/Hora -->
+                        <div class="comanda-row-2">
+                            <div class="form-group">
+                                <label class="form-label">Profissional</label>
+                                <select class="form-input" id="comandaBarbeiroSelect" onchange="onComandaBarberChange()">
+                                    <option value="">— Selecione —</option>
+                                </select>
+                            </div>
+                            <div class="comanda-row-2" style="gap:10px;">
+                                <div class="form-group">
+                                    <label class="form-label">Data</label>
+                                    <input type="date" class="form-input" id="comandaData">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Horário</label>
+                                    <select class="form-input" id="comandaHorario"></select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Busca de Cliente -->
+                        <div class="form-group" style="position:relative;">
+                            <label class="form-label"><i class="fa-solid fa-user-check" style="color:var(--accent-gold);"></i> Cliente</label>
+                            <input type="text" class="form-input" id="comandaClienteSearch"
+                                placeholder="Digite o nome ou telefone..."
+                                oninput="buscarClienteComanda(this.value)"
+                                autocomplete="off">
+                            <div class="comanda-cliente-results" id="comandaClienteResults" style="display:none;"></div>
+                            <div class="comanda-cliente-selecionado" id="comandaClienteSelecionado" style="display:none;">
+                                <i class="fa-solid fa-circle-user" style="color:var(--accent-gold);"></i>
+                                <span id="comandaClienteNomeSel"></span>
+                                <button type="button" class="icon-btn" onclick="limparClienteComanda()" style="margin-left:auto; font-size:13px; color:var(--accent-danger);">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Adicionar Serviços -->
+                        <div class="comanda-add-section">
+                            <div class="comanda-add-header">
+                                <i class="fa-solid fa-scissors" style="color:var(--accent-gold);"></i>
+                                <span>Serviços</span>
+                            </div>
+                            <div class="comanda-items-list" id="comandaServicosList"></div>
+                        </div>
+
+                        <!-- Adicionar Produtos -->
+                        <div class="comanda-add-section">
+                            <div class="comanda-add-header">
+                                <i class="fa-solid fa-box-open" style="color:var(--accent-gold);"></i>
+                                <span>Produtos</span>
+                            </div>
+                            <div class="comanda-items-list" id="comandaProdutosList"></div>
+                        </div>
+
+                        <!-- Observação -->
+                        <div class="form-group">
+                            <label class="form-label">Observação</label>
+                            <textarea class="form-input" id="comandaObs" rows="2" placeholder="Algum detalhe para o profissional..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- COLUNA DIREITA: Resumo + Total + Pagamento -->
+                    <div class="comanda-col-right">
+                        <div class="comanda-resumo-box">
+                            <div class="comanda-resumo-title">
+                                <i class="fa-solid fa-receipt"></i> Resumo
+                            </div>
+
+                            <div class="comanda-resumo-list" id="comandaResumoList">
+                                <div class="comanda-resumo-vazio">
+                                    <i class="fa-solid fa-basket-shopping" style="font-size:24px; margin-bottom:8px;"></i>
+                                    <span>Nenhum item adicionado</span>
+                                </div>
+                            </div>
+
+                            <div class="comanda-total-line">
+                                <span>Total</span>
+                                <span class="comanda-total-value" id="comandaTotalValor">R$ 0,00</span>
+                            </div>
+
+                            <!-- Forma de Pagamento -->
+                            <div style="margin-top:16px;">
+                                <label class="form-label">Forma de Pagamento</label>
+                                <div class="comanda-pagamento-grid">
+                                    <button class="pagamento-btn ativo" id="pgDinheiro" onclick="selecionarPagamento('dinheiro', this)">
+                                        <i class="fa-solid fa-money-bill-wave"></i> Dinheiro
+                                    </button>
+                                    <button class="pagamento-btn" id="pgCartao" onclick="selecionarPagamento('cartao', this)">
+                                        <i class="fa-solid fa-credit-card"></i> Cartão
+                                    </button>
+                                    <button class="pagamento-btn" id="pgPix" onclick="selecionarPagamento('pix', this)">
+                                        <i class="fa-brands fa-pix"></i> PIX
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Ações -->
+                            <div class="comanda-acoes">
+                                <button class="secondary-btn" style="flex:1;" onclick="salvarAgendamentoComanda()">
+                                    <i class="fa-solid fa-calendar-check"></i> Salvar Agendamento
+                                </button>
+                                <button class="primary-btn" style="flex:1;" onclick="finalizarComanda()">
+                                    <i class="fa-solid fa-check-circle"></i> Finalizar & Cobrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: PLANILHA DE FATURAMENTO / GANHOS -->
+    <div class="modal-overlay" id="modalPlanilhaFaturamento" style="z-index: 16000;">
+        <div class="modal-card" style="max-width: 900px; width:95%; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header" style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="width:40px; height:40px; border-radius:50%; background:var(--accent-gold-glow); display:flex; align-items:center; justify-content:center; color:var(--accent-gold); font-size:18px;">
+                        <i class="fa-solid fa-table"></i>
+                    </div>
+                    <div>
+                        <h3 id="modalPlanilhaTitulo" style="margin:0; font-size:16px;">Planilha de Detalhes</h3>
+                        <span id="modalPlanilhaDesc" style="font-size:12px; color:var(--text-muted);">Métricas auditadas em tempo real</span>
+                    </div>
+                </div>
+                <button class="icon-btn" onclick="fecharModalPlanilha()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 20px; overflow-y: auto; flex: 1;">
+                <div class="customer-table-container" style="border: 1px solid rgba(255,255,255,0.05); border-radius: var(--border-radius-sm); overflow-x: auto;">
+                    <table class="customer-table" style="width: 100%; border-collapse: collapse;">
+                        <thead id="modalPlanilhaHead">
+                            <!-- Preenchido dinamicamente -->
+                        </thead>
+                        <tbody id="modalPlanilhaBody">
+                            <!-- Preenchido dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; background: var(--bg-secondary);">
+                <button class="primary-btn" onclick="fecharModalPlanilha()" style="padding: 10px 24px; font-size:13px;">Fechar Planilha</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOCK OVERLAY: ASSINATURA EXPIRADA -->
+    <div class="lock-overlay" id="saasLockOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-primary); z-index:99999; overflow-y:auto; padding: 20px;">
+        <div style="min-height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 20px 0;">
+            <div class="login-card" style="max-width: 480px; margin: 0 auto; border-color: var(--accent-gold); box-shadow: 0 0 30px rgba(197,160,40,0.15); width: 100%;">
+                <div class="login-logo" style="margin-bottom: 20px; text-align: center;">
+                    <div class="login-logo-icon" style="background: rgba(197,160,40,0.1); color:var(--accent-gold); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto; font-size: 24px;"><i class="fa-solid fa-lock"></i></div>
+                    <h2 style="color: var(--accent-gold); margin: 0; font-size: 20px;">Assinatura do App</h2>
+                    <span style="color:var(--text-muted); font-size: 13px;">Página Segura de Pagamento</span>
+                </div>
+                <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:20px; line-height:1.6;">
+                    Escolha um plano de renovação abaixo para assinar a plataforma e liberar o sistema de agendamento na hora!
+                </p>
+                
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label" for="checkoutPlanSelect">Selecione o Plano</label>
+                    <select class="form-input" id="checkoutPlanSelect" onchange="atualizarPrecoCheckout()"></select>
+                </div>
+                
+                <div class="fidelity-card" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:16px; margin-bottom:20px; text-align:center; border-radius: var(--border-radius-sm);">
+                    <span style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Valor via PIX:</span>
+                    <strong style="font-size:24px; color:var(--accent-gold);" id="checkoutPlanPrice">R$ 0,00</strong>
+                </div>
+
+                <!-- Checkout PIX Section -->
+                <div class="checkout-pix-box" style="display:flex; flex-direction:column; align-items:center; background:var(--bg-tertiary); padding:16px; border-radius:var(--border-radius-sm); margin-bottom:20px;">
+                    <div style="width:150px; height:150px; background:white; padding:8px; border-radius:8px; margin-bottom:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 15px rgba(0,0,0,0.5);">
+                        <img id="pixQrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=00020101021226850014br.gov.bcb.pix2563pix.seupagamento.com/qr/v2/cob44208a0050800050800060005303986540599905802BR5917BARBER_SaaS_DEV6009SAO_PAULO62070503***6304FC3C" alt="QR Code PIX Real" style="width:100%; height:100%; object-fit:contain;">
+                    </div>
+                    <button class="secondary-btn" style="width:100%; font-size:12px; padding:8px 12px; margin-bottom:6px;" onclick="copiarPixCheckout()">
+                        <i class="fa-solid fa-copy"></i> Copiar Código PIX Copia e Cola
+                    </button>
+                    <input type="text" id="pixCopiaColaInput" readonly style="position:absolute; left:-9999px;">
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button class="secondary-btn" style="flex:1;" onclick="fecharPagamentoSaaS()"><i class="fa-solid fa-xmark"></i> Fechar</button>
+                    <button class="primary-btn" style="flex:2;" onclick="simularPagamentoAssinatura()"><i class="fa-solid fa-check-circle"></i> Confirmar Pagamento</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: NOVO PLANO (Super-Admin) -->
+    <div class="modal-overlay" id="modalDevPlanoForm" style="z-index: 25000;">
+        <div class="modal-card" style="max-width:440px;">
+            <div class="modal-header">
+                <h3 id="modalDevPlanoTitulo">Adicionar Novo Plano</h3>
+                <button class="icon-btn" onclick="fecharModalPlanoForm()" style="color: var(--text-secondary); font-size: 20px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="devPlanoForm" onsubmit="salvarPlanoForm(event)">
+                    <input type="hidden" id="formPlanoId">
+                    <div class="form-group">
+                        <label class="form-label" for="formPlanoNome">Nome do Plano</label>
+                        <input type="text" class="form-input" id="formPlanoNome" required placeholder="Ex: Plano Gold Anual">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="formPlanoPreco">Preço Mensal (R$)</label>
+                        <input type="number" step="0.01" min="0" class="form-input" id="formPlanoPreco" required placeholder="149.90">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="formPlanoDuracao">Duração em Dias</label>
+                        <input type="number" min="1" class="form-input" id="formPlanoDuracao" value="30" required>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                        <button type="button" class="secondary-btn" onclick="fecharModalPlanoForm()">Cancelar</button>
+                        <button type="submit" class="primary-btn"><i class="fa-solid fa-floppy-disk"></i> Salvar Plano</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container de Toasts -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts do Aplicativo -->
+    <script src="app_v36.js"></script>
+</body>
+</html>
